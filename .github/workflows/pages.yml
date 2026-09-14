@@ -1,0 +1,66 @@
+name: Deploy Frontend to GitHub Pages
+
+# 把 frontend/ 构建成静态站点并发布到 GitHub Pages。
+# 后端 API 不在 Pages 上运行，若要让线上页面真正可用，
+# 在仓库 Settings → Secrets and variables → Actions → Variables 里新增
+# API_BASE_URL = 后端公开地址，构建时会注入为 VITE_API_BASE。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: npm ci
+
+      - name: 类型检查
+        working-directory: frontend
+        run: npx tsc -b
+
+      - name: 构建（项目站点需指定 base 路径）
+        working-directory: frontend
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE_URL }}
+        run: npx vite build --base=/liu-aochi/
+
+      - name: 生成 SPA 回退页（BrowserRouter 刷新不再 404）
+        run: cp frontend/dist/index.html frontend/dist/404.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,5 +1,7 @@
 // 轻量 API 客户端
-const BASE = ''
+// 本地开发走 vite 代理（BASE 为空，请求 /api/* 由 dev server 转发）；
+// 部署到 GitHub Pages 等静态托管时，用 VITE_API_BASE 指向后端地址。
+const BASE = import.meta.env.VITE_API_BASE ?? ''
 
 export class ApiError extends Error {
   status: number
