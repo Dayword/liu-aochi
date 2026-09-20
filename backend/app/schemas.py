@@ -330,6 +330,56 @@ class LearnHintOut(BaseModel):
     hint: str
 
 
+# ---------- 面试题引导学习 ----------
+class InterviewGuideBrief(BaseModel):
+    code: str
+    order_no: int
+    stage: str            # 分类（9 类之一），也是分类内的解锁分组
+    title: str            # 面试官原话
+    summary: str
+    status: str           # locked / unlocked / completed
+    best_score: int = 0
+    min_score: int = 70
+
+
+class InterviewGuideDetail(InterviewGuideBrief):
+    definition: str       # 考察点
+    plain: str            # 大白话拆解
+    example: str          # 满分回答（前端在提交后才展示）
+    pitfalls: list[str]   # 4 条「这么说会减分」
+    followups: list[dict] # 2~3 条追问链
+    answer_hint: str      # 卡住时的一句话提示
+    last_answer: str = ""
+    next_code: Optional[str] = None
+
+
+class InterviewGuideAnswerIn(BaseModel):
+    code: str
+    answer: str
+
+
+class InterviewGuideAnswerOut(BaseModel):
+    score: int
+    passed: bool           # 本次是否达标
+    min_score: int
+    hit_keywords: list[str]     # 踩中的要点
+    missed_keywords: list[str]  # 漏掉的要点 —— 也是「你漏了什么」的反馈来源
+    comment: str           # 点评
+    attempts: int
+    best_score: int
+    already_passed: bool = False   # 这题在此前是否已过关
+    next_code: Optional[str] = None
+
+
+class InterviewGuideHintIn(BaseModel):
+    code: str
+    answer: str = ""
+
+
+class InterviewGuideHintOut(BaseModel):
+    hint: str
+
+
 # ---------- 消消乐闯关 ----------
 class Match3StartIn(BaseModel):
     level_code: str

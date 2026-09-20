@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { App, Button, Input, Progress, Select } from 'antd'
 import { motion } from 'framer-motion'
 import { api } from '../api/client'
+import InterviewGuide from './InterviewGuide'
 import { useAuth } from '../store/auth'
 import type { ClassInfo, InterviewAnswer, InterviewReport, InterviewStart } from '../types'
 
@@ -27,6 +28,8 @@ export default function Interview() {
   const [roundResult, setRoundResult] = useState<InterviewAnswer | null>(null)
   const [report, setReport] = useState<InterviewReport | null>(null)
   const [history, setHistory] = useState<Msg[]>([])
+  // 页面主体是「面试题引导学习」，模拟面试是通过顶部入口切过去的第二个视图
+  const [mode, setMode] = useState<'guide' | 'mock'>('guide')
 
   useEffect(() => {
     api
@@ -148,7 +151,16 @@ export default function Interview() {
         </div>
 
         <div className="flex gap-3 mt-6 justify-center">
-          <Button onClick={() => setReport(null)}>返回面试大厅</Button>
+          <Button
+            onClick={() => {
+              setReport(null)
+              setSession(null)
+              setHistory([])
+              setMode('guide')
+            }}
+          >
+            返回面试题引导学习
+          </Button>
           <Button
             type="primary"
             onClick={() => {
@@ -165,12 +177,33 @@ export default function Interview() {
     )
   }
 
-  // ---------- 大厅 / 进行中 ----------
+  // ---------- 面试题引导学习（页面主体） ----------
+  if (mode === 'guide') {
+    return <InterviewGuide onStartMock={() => setMode('mock')} />
+  }
+
+  // ---------- 模拟面试：大厅 / 进行中 ----------
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-indigo-700">🎤 面试闯关</h1>
-        <p className="text-slate-500 text-sm mt-1">模拟真实面试全流程：一面基础面 → 二面深度面 → 三面主管面 → HR面</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-indigo-700">🎤 模拟面试</h1>
+          <p className="text-slate-500 text-sm mt-1">
+            模拟真实面试全流程：一面基础面 → 二面深度面 → 三面主管面 → HR面
+          </p>
+        </div>
+        <Button
+          size="small"
+          className="shrink-0"
+          onClick={() => {
+            setSession(null)
+            setReport(null)
+            setHistory([])
+            setMode('guide')
+          }}
+        >
+          ← 返回面试题引导学习
+        </Button>
       </div>
 
       {!session ? (

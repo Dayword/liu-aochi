@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
 from .routers import (auth, bug_hunter, chat, code, games, growth, interview,
-                      learn, levels, quests, user)
+                      interview_guide, learn, levels, quests, user)
 
 
 async def _warm_up_ai() -> None:
@@ -48,6 +48,7 @@ app.include_router(levels.router)
 app.include_router(quests.router)
 app.include_router(chat.router)
 app.include_router(interview.router)
+app.include_router(interview_guide.router)
 app.include_router(bug_hunter.router)
 app.include_router(code.router)
 app.include_router(growth.router)

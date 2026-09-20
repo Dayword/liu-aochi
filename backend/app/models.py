@@ -104,6 +104,22 @@ class LearnProgress(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class InterviewGuideProgress(Base):
+    """面试题引导学习的进度：自己写的答案踩中要点到达阈值才算过关，分类内顺序解锁。"""
+
+    __tablename__ = "interview_guide_progress"
+    __table_args__ = (UniqueConstraint("user_id", "question_code", name="uq_user_interview_guide"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    question_code: Mapped[str] = mapped_column(String(32), index=True)
+    passed: Mapped[bool] = mapped_column(Boolean, default=False)
+    best_score: Mapped[int] = mapped_column(Integer, default=0)   # 历次最高分，只看这一项判定过关
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_answer: Mapped[str] = mapped_column(Text, default="")    # 上次写的回答，刷新后还能接着改
+    passed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
 # ---------- 题库 ----------
 class Question(Base):
     __tablename__ = "questions"

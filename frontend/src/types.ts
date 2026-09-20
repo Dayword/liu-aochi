@@ -328,3 +328,44 @@ export interface Match3CompleteResult {
   coins_gained: number
   unlocked_next: string | null
 }
+
+// ---------- 面试题引导学习 ----------
+export interface GuidePointBrief {
+  code: string
+  order_no: number
+  stage: string
+  title: string
+  summary: string
+  status: 'locked' | 'unlocked' | 'completed'
+  best_score: number
+  min_score: number
+}
+
+export interface GuideFollowup {
+  q: string
+  a: string
+}
+
+export interface GuidePointDetail extends GuidePointBrief {
+  definition: string
+  plain: string
+  example: string
+  pitfalls: string[]
+  followups: GuideFollowup[]
+  answer_hint: string
+  last_answer: string
+  next_code: string | null
+}
+
+export interface GuideAnswerResult {
+  score: number
+  passed: boolean
+  min_score: number
+  hit_keywords: string[]
+  missed_keywords: string[]
+  comment: string
+  attempts: number
+  best_score: number
+  already_passed: boolean
+  next_code: string | null
+}
