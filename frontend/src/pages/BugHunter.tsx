@@ -6,7 +6,7 @@ import { useAuth } from '../store/auth'
 import type { BugChallenge, BugSubmit } from '../types'
 
 const DIFF_LABELS: Record<number, string> = { 1: '入门', 2: '进阶', 3: '困难' }
-const DIFF_COLORS: Record<number, string> = { 1: '#34d399', 2: '#fbbf24', 3: '#f87171' }
+const DIFF_COLORS: Record<number, string> = { 1: '#34d399', 2: '#d97706', 3: '#dc2626' }
 
 export default function BugHunter() {
   const { message } = App.useApp()
@@ -78,8 +78,8 @@ export default function BugHunter() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-indigo-200">🐛 Bug 猎人</h1>
-          <p className="text-slate-400 text-sm mt-1">阅读代码、找出 Bug、提交修复，AI 实时运行验证</p>
+          <h1 className="text-2xl font-bold text-indigo-700">🐛 Bug 猎人</h1>
+          <p className="text-slate-500 text-sm mt-1">阅读代码、找出 Bug、提交修复，AI 实时运行验证</p>
         </div>
         <Segmented
           value={filter}
@@ -115,9 +115,9 @@ export default function BugHunter() {
                   {DIFF_LABELS[c.difficulty]} · {c.bug_type}
                 </span>
               </div>
-              <div className="mt-2 font-medium text-slate-100">{c.title}</div>
-              <div className="text-[11px] text-slate-400 mt-1 line-clamp-2">{c.description}</div>
-              <div className="text-[11px] text-indigo-300/70 mt-2">{c.language} · 点击修复 →</div>
+              <div className="mt-2 font-medium text-slate-800">{c.title}</div>
+              <div className="text-[11px] text-slate-500 mt-1 line-clamp-2">{c.description}</div>
+              <div className="text-[11px] text-indigo-600/70 mt-2">{c.language} · 点击修复 →</div>
             </motion.button>
           ))}
           {filtered.length === 0 && <div className="text-slate-500 py-10 text-center col-span-2">暂无挑战</div>}
@@ -125,16 +125,16 @@ export default function BugHunter() {
 
         {/* Bug 猎人排行榜 */}
         <div className="game-panel p-5 h-fit">
-          <h3 className="font-semibold text-indigo-200 mb-4">🏆 Bug 猎人排行榜</h3>
+          <h3 className="font-semibold text-indigo-700 mb-4">🏆 Bug 猎人排行榜</h3>
           <div className="space-y-2">
             {leaderboard.slice(0, 10).map((e) => (
-              <div key={e.rank} className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg bg-white/5">
-                <span className={`w-5 text-center font-bold ${e.rank <= 3 ? 'text-amber-300' : 'text-slate-500'}`}>
+              <div key={e.rank} className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg bg-slate-50">
+                <span className={`w-5 text-center font-bold ${e.rank <= 3 ? 'text-amber-600' : 'text-slate-500'}`}>
                   {e.rank}
                 </span>
-                <span className="flex-1 truncate text-slate-200">{e.character_name}</span>
+                <span className="flex-1 truncate text-slate-700">{e.character_name}</span>
                 <span className="text-[10px] text-slate-500">{e.bug_code}</span>
-                <span className="text-[11px] text-amber-300">{e.score}分</span>
+                <span className="text-[11px] text-amber-600">{e.score}分</span>
               </div>
             ))}
             {leaderboard.length === 0 && (
@@ -167,37 +167,37 @@ export default function BugHunter() {
         {current && (
           <div className="space-y-4">
             {!result && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90">
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700/90">
                 💡 提示：{current.hint}
               </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-xl overflow-hidden border border-indigo-500/20">
-                <div className="bg-[#12142e] px-3 py-1.5 text-xs text-slate-400">原始代码（含 Bug）</div>
-                <pre className="p-3 text-xs text-rose-300/90 overflow-x-auto bg-[#12142e] whitespace-pre-wrap font-mono leading-relaxed">
+              <div className="rounded-xl overflow-hidden border border-indigo-200">
+                <div className="bg-[#f4f6fa] px-3 py-1.5 text-xs text-slate-500">原始代码（含 Bug）</div>
+                <pre className="p-3 text-xs text-rose-600/90 overflow-x-auto bg-[#f4f6fa] whitespace-pre-wrap font-mono leading-relaxed">
                   {current.buggy_code}
                 </pre>
               </div>
-              <div className="rounded-xl overflow-hidden border border-indigo-500/20">
-                <div className="bg-[#12142e] px-3 py-1.5 text-xs text-slate-400 flex justify-between">
+              <div className="rounded-xl overflow-hidden border border-indigo-200">
+                <div className="bg-[#f4f6fa] px-3 py-1.5 text-xs text-slate-500 flex justify-between">
                   <span>你的修复代码</span>
-                  <span className="text-emerald-400">● 实时运行验证</span>
+                  <span className="text-emerald-600">● 实时运行验证</span>
                 </div>
                 <Input.TextArea
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   rows={12}
-                  style={{ fontFamily: 'Consolas, monospace', background: '#12142e', border: 'none' }}
+                  style={{ fontFamily: 'Consolas, monospace', background: '#f4f6fa', border: 'none' }}
                 />
               </div>
             </div>
 
             {/* 测试用例预览 */}
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-500">
               测试用例预览：
               {(current.test_cases_preview || []).map((tc, i) => (
-                <span key={i} className="ml-2 px-2 py-0.5 bg-white/5 rounded">
+                <span key={i} className="ml-2 px-2 py-0.5 bg-slate-50 rounded">
                   输入 "{tc.input}" → 期望 "{tc.expected}"
                 </span>
               ))}
@@ -210,39 +210,39 @@ export default function BugHunter() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={`p-4 rounded-2xl border ${
-                    result.passed ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-rose-500/40 bg-rose-500/10'
+                    result.passed ? 'border-emerald-300 bg-emerald-50' : 'border-rose-300 bg-rose-50'
                   }`}
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                    <div className={`font-bold ${result.passed ? 'text-emerald-300' : 'text-rose-300'}`}>
+                    <div className={`font-bold ${result.passed ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {result.passed ? '🎉 修复成功！' : '❌ 仍有 Bug'}
                     </div>
-                    <div className="text-sm text-amber-300">综合评分 {result.score} 分</div>
+                    <div className="text-sm text-amber-600">综合评分 {result.score} 分</div>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-xs mb-3">
-                    <div className="p-2 bg-white/5 rounded-lg">
-                      <div className="text-lg font-bold text-emerald-400">{result.accuracy}%</div>
-                      <div className="text-slate-400">测试通过率</div>
+                    <div className="p-2 bg-slate-50 rounded-lg">
+                      <div className="text-lg font-bold text-emerald-600">{result.accuracy}%</div>
+                      <div className="text-slate-500">测试通过率</div>
                     </div>
-                    <div className="p-2 bg-white/5 rounded-lg">
-                      <div className="text-lg font-bold text-indigo-300">{result.tests_passed}/{result.tests_total}</div>
-                      <div className="text-slate-400">通过用例</div>
+                    <div className="p-2 bg-slate-50 rounded-lg">
+                      <div className="text-lg font-bold text-indigo-600">{result.tests_passed}/{result.tests_total}</div>
+                      <div className="text-slate-500">通过用例</div>
                     </div>
-                    <div className="p-2 bg-white/5 rounded-lg">
-                      <div className="text-lg font-bold text-purple-300">{result.speed_ms}ms</div>
-                      <div className="text-slate-400">运行耗时</div>
+                    <div className="p-2 bg-slate-50 rounded-lg">
+                      <div className="text-lg font-bold text-purple-600">{result.speed_ms}ms</div>
+                      <div className="text-slate-500">运行耗时</div>
                     </div>
-                    <div className="p-2 bg-white/5 rounded-lg">
-                      <div className="text-lg font-bold text-amber-300">{result.quality}</div>
-                      <div className="text-slate-400">代码质量</div>
+                    <div className="p-2 bg-slate-50 rounded-lg">
+                      <div className="text-lg font-bold text-amber-600">{result.quality}</div>
+                      <div className="text-slate-500">代码质量</div>
                     </div>
                   </div>
-                  <div className="text-sm text-slate-300 leading-relaxed">{result.explanation}</div>
-                  <div className="text-xs text-slate-400 mt-2">
+                  <div className="text-sm text-slate-600 leading-relaxed">{result.explanation}</div>
+                  <div className="text-xs text-slate-500 mt-2">
                     ✨ +{result.exp_gained} EXP · 🪙 +{result.coins_gained}
                   </div>
                   {result.new_achievements.map((a) => (
-                    <div key={a.code} className="text-xs text-amber-300 mt-1">
+                    <div key={a.code} className="text-xs text-amber-600 mt-1">
                       🎉 解锁成就：{a.icon} {a.name}
                     </div>
                   ))}

@@ -1,8 +1,9 @@
 import json
+import os
 import time
 import urllib.request
 
-BASE = 'http://127.0.0.1:8000'
+BASE = os.environ.get('API_BASE', 'http://127.0.0.1:8001')
 USERNAME = 'tester' + str(int(time.time()))
 
 
@@ -83,6 +84,39 @@ def main():
 
     s, d = req('GET', '/api/growth/leaderboard?board=total', token=token)
     print('10 leaderboard:', s, len(d))
+
+    # ---- 引导式学习：多科目 + 科目内独立解锁 + SQL 沙箱 ----
+    s, pts = req('GET', '/api/learn/points', token=token)
+    subjects = []
+    for p in pts:
+        if p['subject'] not in subjects:
+            subjects.append(p['subject'])
+    print('10a learn points:', s, '共', len(pts), '课 /', len(subjects), '科目:', subjects)
+    firsts = [(p['subject'], p['status']) for i, p in enumerate(pts)
+              if i == 0 or pts[i - 1]['subject'] != p['subject']]
+    print('    每科首课状态:', firsts)
+
+    s, d = req('GET', '/api/learn/points/mysql-01', token=token)
+    print('10b mysql-01:', s, 'runner', d.get('runner'), 'has_task', d.get('has_task'),
+          '习题', len(d.get('quizzes', [])))
+
+    s, d = req('POST', '/api/learn/check',
+               {'code': 'mysql-01',
+                'user_code': "CREATE TABLE students (id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                             " name TEXT NOT NULL, age INTEGER, score REAL);\n"
+                             "INSERT INTO students (name, age, score) VALUES ('小明', 18, 88.5);\n"
+                             "INSERT INTO students (name, age, score) VALUES ('小红', 19, 92.5);\n"
+                             "INSERT INTO students (name, age, score) VALUES ('小刚', 20, 75.5);\n"}, token)
+    print('10c SQL 判定:', s, 'passed', d.get('passed'), 'solved', f"{d.get('solved')}/{d.get('total')}")
+    if not d.get('passed'):
+        print('    reason:', d.get('reason'))
+
+    s, d = req('POST', '/api/learn/check',
+               {'code': 'mysql-01', 'user_code': 'SELECT 1;'}, token)
+    print('10d SQL 错答案应判否:', s, 'passed', d.get('passed'),
+          '| reason:', (d.get('reason') or '')[:40])
+    s, d = req('GET', '/api/learn/points/mysql-03', token=token)
+    print('10e 未解锁的 mysql-03:', s, '(403 = 科目内顺序解锁生效)')
 
     # Bug submit full round
     s, d = req('POST', '/api/bugs/submit',

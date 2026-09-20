@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   margin: 0;
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background: #0f1023;
-  color: #e2e8f0;
+  background: #f6f7fb;
+  color: #1f2430;
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.18), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(251, 191, 36, 0.08), transparent);
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.07), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(251, 191, 36, 0.06), transparent);
   min-height: 100vh;
 }
 
 .game-panel {
-  @apply bg-[#1a1c3b]/90 border border-indigo-500/20 rounded-2xl shadow-lg;
+  @apply bg-white border border-slate-200 rounded-2xl shadow-sm;
 }
 
 .glow-btn {
-  @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5;
+  @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
 }
 
 ::-webkit-scrollbar {
@@ -30,22 +30,22 @@ body {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.28);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* AntD 深色适配 */
+/* AntD 浅色适配 */
 .ant-modal-content, .ant-drawer-content {
-  background: #1a1c3b !important;
-  color: #e2e8f0 !important;
+  background: #ffffff !important;
+  color: #1f2430 !important;
 }
 .ant-modal-header, .ant-modal-title {
   background: transparent !important;
-  color: #f1f5f9 !important;
+  color: #1f2430 !important;
 }
 .ant-radio-wrapper, .ant-checkbox-wrapper {
-  color: #e2e8f0 !important;
+  color: #1f2430 !important;
 }

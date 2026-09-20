@@ -47,8 +47,8 @@ export default function Auth({ mode }: { mode: 'login' | 'register' }) {
       >
         <div className="text-center mb-6">
           <div className="text-5xl mb-2 animate-float inline-block">🗺️</div>
-          <h1 className="text-2xl font-bold text-indigo-200">代码冒险者</h1>
-          <p className="text-slate-400 text-sm mt-1">软件工程游戏化 AI 问答系统</p>
+          <h1 className="text-2xl font-bold text-indigo-700">代码冒险者</h1>
+          <p className="text-slate-500 text-sm mt-1">软件工程游戏化 AI 问答系统</p>
         </div>
 
         <div className="space-y-3">
@@ -87,19 +87,19 @@ export default function Auth({ mode }: { mode: 'login' | 'register' }) {
           </Button>
         </div>
 
-        <div className="text-center mt-5 text-sm text-slate-400">
+        <div className="text-center mt-5 text-sm text-slate-500">
           {mode === 'login' ? (
             <>
-              还没有账号？<Link to="/register" className="text-indigo-300 hover:text-indigo-200">立即注册</Link>
+              还没有账号？<Link to="/register" className="text-indigo-600 hover:text-indigo-700">立即注册</Link>
             </>
           ) : (
             <>
-              已有账号？<Link to="/login" className="text-indigo-300 hover:text-indigo-200">直接登录</Link>
+              已有账号？<Link to="/login" className="text-indigo-600 hover:text-indigo-700">直接登录</Link>
             </>
           )}
         </div>
 
-        <div className="mt-6 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-slate-400">
+        <div className="mt-6 p-3 rounded-xl bg-indigo-50 border border-indigo-200 text-xs text-slate-500">
           💡 边玩边学：注册后选择职业分支，闯关答题、AI 导师答疑、模拟面试，一路升级拿到「虚拟 Offer」。
         </div>
       </motion.div>

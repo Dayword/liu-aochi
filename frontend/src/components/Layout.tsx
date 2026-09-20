@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Progress, Tooltip, message } from 'antd'
 import {
+  BookOutlined,
   BugOutlined,
   CommentOutlined,
   CrownOutlined,
@@ -15,6 +16,7 @@ import { useAuth } from '../store/auth'
 
 const NAV = [
   { to: '/', label: '首页', icon: <HomeOutlined /> },
+  { to: '/learn', label: '引导式学习', icon: <BookOutlined /> },
   { to: '/levels', label: '关卡地图', icon: <EnvironmentOutlined /> },
   { to: '/chat', label: 'AI 导师', icon: <CommentOutlined /> },
   { to: '/interview', label: '面试闯关', icon: <CrownOutlined /> },
@@ -37,11 +39,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex">
       {/* 侧边导航 */}
       {!isQuest && (
-        <aside className="w-20 md:w-60 shrink-0 border-r border-indigo-500/20 bg-[#141634]/80 backdrop-blur flex flex-col sticky top-0 h-screen z-20">
+        <aside className="w-20 md:w-60 shrink-0 border-r border-indigo-200 bg-[#ffffff]/80 backdrop-blur flex flex-col sticky top-0 h-screen z-20">
           <div className="p-4 md:px-5 flex items-center gap-2">
             <span className="text-3xl">⚔️</span>
             <div className="hidden md:block">
-              <div className="font-bold text-indigo-200">代码冒险者</div>
+              <div className="font-bold text-indigo-700">代码冒险者</div>
               <div className="text-[11px] text-slate-500">软件工程 · 游戏化学习</div>
             </div>
           </div>
@@ -53,8 +55,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all ${
                     isActive
-                      ? 'bg-indigo-500/20 text-indigo-200 font-medium shadow-inner'
-                      : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                      ? 'bg-indigo-100 text-indigo-700 font-medium shadow-sm'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                   }`
                 }
               >
@@ -64,12 +66,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           {character && (
-            <div className="p-3 border-t border-indigo-500/20 hidden md:block">
+            <div className="p-3 border-t border-indigo-200 hidden md:block">
               <div className="flex items-center gap-2 mb-2">
                 <Avatar className="bg-indigo-500">{character.class_name.slice(0, 1)}</Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-medium truncate">{character.name}</div>
-                  <div className="text-[11px] text-amber-300">
+                  <div className="text-[11px] text-amber-600">
                     {character.class_name} · Lv.{character.level} {character.title}
                   </div>
                 </div>
@@ -77,11 +79,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <Progress
                 percent={expPct}
                 size="small"
-                strokeColor="#a78bfa"
-                trailColor="#2a2d52"
+                strokeColor="#7c3aed"
+                trailColor="#e2e8f0"
                 format={() => `${character.exp}/${character.exp_to_next}`}
               />
-              <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+              <div className="flex justify-between text-[11px] text-slate-500 mt-1">
                 <span>🪙 {character.coins}</span>
                 <span>❤️ {character.hp}/{character.max_hp}</span>
               </div>
@@ -90,7 +92,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   logout()
                   navigate('/login')
                 }}
-                className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] text-slate-500 hover:text-rose-400 transition-colors"
+                className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] text-slate-500 hover:text-rose-600 transition-colors"
               >
                 <LogoutOutlined /> 退出登录
               </button>
@@ -102,18 +104,18 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* 主内容 */}
       <main className="flex-1 min-w-0">
         {!isQuest && character && (
-          <div className="sticky top-0 z-10 bg-[#0f1023]/80 backdrop-blur border-b border-indigo-500/10 px-4 md:px-8 py-2 flex items-center gap-3 md:hidden">
+          <div className="sticky top-0 z-10 bg-[#f6f7fb]/80 backdrop-blur border-b border-indigo-100 px-4 md:px-8 py-2 flex items-center gap-3 md:hidden">
             <span className="text-xl">⚔️</span>
-            <span className="text-sm font-medium text-indigo-200">{character.name}</span>
-            <span className="text-xs text-amber-300 ml-auto">Lv.{character.level}</span>
-            <span className="text-xs text-slate-300">🪙 {character.coins}</span>
+            <span className="text-sm font-medium text-indigo-700">{character.name}</span>
+            <span className="text-xs text-amber-600 ml-auto">Lv.{character.level}</span>
+            <span className="text-xs text-slate-600">🪙 {character.coins}</span>
             <Tooltip title="退出登录">
               <button
                 onClick={() => {
                   logout()
                   navigate('/login')
                 }}
-                className="text-slate-400 hover:text-rose-400"
+                className="text-slate-500 hover:text-rose-600"
               >
                 <LogoutOutlined />
               </button>

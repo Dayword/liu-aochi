@@ -148,29 +148,29 @@ export default function Quest() {
           className="game-panel w-full max-w-lg p-8 text-center"
         >
           <div className="text-6xl mb-3">{settle.level_completed ? '🏆' : '💔'}</div>
-          <h1 className="text-2xl font-bold text-indigo-200">
+          <h1 className="text-2xl font-bold text-indigo-700">
             {settle.level_completed ? '关卡通关！' : '本次挑战结束'}
           </h1>
-          <div className="text-slate-400 text-sm mt-1">{levelName}</div>
+          <div className="text-slate-500 text-sm mt-1">{levelName}</div>
 
           <div className="grid grid-cols-3 gap-3 my-6">
-            <div className="p-3 rounded-xl bg-white/5">
-              <div className="text-2xl font-bold text-emerald-400">{settle.correct_count}</div>
-              <div className="text-[11px] text-slate-400">答对</div>
+            <div className="p-3 rounded-xl bg-slate-50">
+              <div className="text-2xl font-bold text-emerald-600">{settle.correct_count}</div>
+              <div className="text-[11px] text-slate-500">答对</div>
             </div>
-            <div className="p-3 rounded-xl bg-white/5">
-              <div className="text-2xl font-bold text-rose-400">{settle.wrong_count}</div>
-              <div className="text-[11px] text-slate-400">答错</div>
+            <div className="p-3 rounded-xl bg-slate-50">
+              <div className="text-2xl font-bold text-rose-600">{settle.wrong_count}</div>
+              <div className="text-[11px] text-slate-500">答错</div>
             </div>
-            <div className="p-3 rounded-xl bg-white/5">
-              <div className="text-2xl font-bold text-amber-300">{settle.accuracy}%</div>
-              <div className="text-[11px] text-slate-400">正确率</div>
+            <div className="p-3 rounded-xl bg-slate-50">
+              <div className="text-2xl font-bold text-amber-600">{settle.accuracy}%</div>
+              <div className="text-[11px] text-slate-500">正确率</div>
             </div>
           </div>
 
           <div className="flex justify-center gap-6 text-sm mb-6">
-            <span className="text-purple-300">✨ +{settle.total_exp} EXP</span>
-            <span className="text-amber-300">🪙 +{settle.total_coins} 代码币</span>
+            <span className="text-purple-600">✨ +{settle.total_exp} EXP</span>
+            <span className="text-amber-600">🪙 +{settle.total_coins} 代码币</span>
           </div>
 
           <AnimatePresence>
@@ -178,11 +178,11 @@ export default function Quest() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30"
+                className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200"
               >
-                <div className="text-amber-300 font-medium mb-2">🎉 解锁新成就</div>
+                <div className="text-amber-600 font-medium mb-2">🎉 解锁新成就</div>
                 {settle.new_achievements.map((a) => (
-                  <div key={a.code} className="text-sm text-slate-200">
+                  <div key={a.code} className="text-sm text-slate-700">
                     {a.icon} {a.name} — {a.description}
                   </div>
                 ))}
@@ -191,7 +191,7 @@ export default function Quest() {
           </AnimatePresence>
 
           {settle.unlocked_next && (
-            <div className="text-sm text-emerald-400 mb-4">🔓 已解锁新关卡！</div>
+            <div className="text-sm text-emerald-600 mb-4">🔓 已解锁新关卡！</div>
           )}
 
           <div className="flex gap-3 justify-center">
@@ -228,10 +228,10 @@ export default function Quest() {
         {/* HUD */}
         <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
           <div>
-            <button onClick={exitToMap} className="text-slate-400 hover:text-indigo-300 text-sm">
+            <button onClick={exitToMap} className="text-slate-500 hover:text-indigo-600 text-sm">
               ← 返回地图
             </button>
-            <h1 className="font-bold text-indigo-100 mt-1">{levelName || '闯关挑战'}</h1>
+            <h1 className="font-bold text-indigo-800 mt-1">{levelName || '闯关挑战'}</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex gap-1" title="生命值">
@@ -241,7 +241,7 @@ export default function Quest() {
                 </span>
               ))}
             </div>
-            <div className="text-sm text-slate-300 w-16 text-right">
+            <div className="text-sm text-slate-600 w-16 text-right">
               {question?.index ?? 0} / {total}
             </div>
           </div>
@@ -250,8 +250,8 @@ export default function Quest() {
         <Progress
           percent={Math.round(((question?.index ?? 1) - 1 + (result ? 0 : 0)) * 10)}
           showInfo={false}
-          strokeColor="#818cf8"
-          trailColor="#2a2d52"
+          strokeColor="#6366f1"
+          trailColor="#e2e8f0"
           className="mb-6"
         />
 
@@ -267,17 +267,17 @@ export default function Quest() {
               transition={{ duration: 0.2 }}
             >
               <div className="mb-2 flex items-center gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
                   {question.subject}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                   难度 ★{question.difficulty}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-400">
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                   {question.type === 'choice' ? '选择题' : question.type === 'blank' ? '填空题' : question.type === 'code' ? '编程题' : '简答题'}
                 </span>
               </div>
-              <div className="text-lg text-slate-100 leading-relaxed mb-5 whitespace-pre-wrap">
+              <div className="text-lg text-slate-800 leading-relaxed mb-5 whitespace-pre-wrap">
                 {question.stem}
               </div>
 
@@ -291,13 +291,13 @@ export default function Quest() {
                       className={`text-left px-4 py-3 rounded-xl border text-sm transition-all disabled:opacity-60 ${
                         result
                           ? result.correct && answer === i
-                            ? 'border-emerald-400 bg-emerald-500/15 text-emerald-200'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                             : !result.correct && answer === i
-                              ? 'border-rose-400 bg-rose-500/15 text-rose-200'
-                              : 'border-indigo-500/20 text-slate-400'
+                              ? 'border-rose-400 bg-rose-50 text-rose-700'
+                              : 'border-indigo-200 text-slate-500'
                           : answer === i
-                            ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100'
-                            : 'border-indigo-500/20 text-slate-300 hover:border-indigo-400/60'
+                            ? 'border-indigo-400 bg-indigo-100 text-indigo-800'
+                            : 'border-indigo-200 text-slate-600 hover:border-indigo-400/60'
                       }`}
                     >
                       {opt}
@@ -317,10 +317,10 @@ export default function Quest() {
               )}
 
               {question.type === 'code' && (
-                <div className="rounded-xl overflow-hidden border border-indigo-500/20">
-                  <div className="bg-[#12142e] px-3 py-1.5 text-xs text-slate-400 flex justify-between">
+                <div className="rounded-xl overflow-hidden border border-indigo-200">
+                  <div className="bg-[#f4f6fa] px-3 py-1.5 text-xs text-slate-500 flex justify-between">
                     <span>Python 代码</span>
-                    {!result && <span className="text-indigo-300">闯关模式按思路判定，正式评测请去 Bug 猎人</span>}
+                    {!result && <span className="text-indigo-600">闯关模式按思路判定，正式评测请去 Bug 猎人</span>}
                   </div>
                   <Input.TextArea
                     disabled={!!result}
@@ -328,7 +328,7 @@ export default function Quest() {
                     value={typeof answer === 'number' ? '' : answer}
                     onChange={(e) => setAnswer(e.target.value)}
                     placeholder={question.starter_code || '# 在此编写你的代码'}
-                    style={{ fontFamily: 'Consolas, monospace', background: '#12142e' }}
+                    style={{ fontFamily: 'Consolas, monospace', background: '#f4f6fa' }}
                   />
                 </div>
               )}
@@ -340,26 +340,26 @@ export default function Quest() {
                   animate={{ opacity: 1, y: 0 }}
                   className={`mt-5 p-4 rounded-2xl border ${
                     result.correct
-                      ? 'border-emerald-500/30 bg-emerald-500/10'
-                      : 'border-rose-500/30 bg-rose-500/10'
+                      ? 'border-emerald-300 bg-emerald-50'
+                      : 'border-rose-300 bg-rose-50'
                   }`}
                 >
-                  <div className={`font-medium mb-2 ${result.correct ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  <div className={`font-medium mb-2 ${result.correct ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {result.correct ? '✅ 回答正确！' : '❌ 回答错误'}
-                    <span className="ml-3 text-xs text-slate-400">
+                    <span className="ml-3 text-xs text-slate-500">
                       +{result.exp_gained} EXP · +{result.coins_gained}🪙
                     </span>
                   </div>
-                  <div className="text-sm text-slate-200 leading-relaxed">
-                    <span className="text-indigo-300">考点：</span>
+                  <div className="text-sm text-slate-700 leading-relaxed">
+                    <span className="text-indigo-600">考点：</span>
                     {result.knowledge_point}
                   </div>
-                  <div className="text-sm text-slate-300 leading-relaxed mt-1.5">
-                    <span className="text-indigo-300">解析：</span>
+                  <div className="text-sm text-slate-600 leading-relaxed mt-1.5">
+                    <span className="text-indigo-600">解析：</span>
                     {result.explanation}
                   </div>
                   {result.ai_analysis && (
-                    <div className="text-sm text-purple-300 leading-relaxed mt-1.5">
+                    <div className="text-sm text-purple-600 leading-relaxed mt-1.5">
                       <span>🤖 AI 分析：</span>
                       {result.ai_analysis}
                     </div>
@@ -401,8 +401,8 @@ export default function Quest() {
         title="❤️ 生命值耗尽"
         centered
       >
-        <p className="text-slate-300">
-          你已阵亡……可以用 <span className="text-amber-300">{character?.coins ?? 0} 代码币</span> 复活并恢复全部生命值，
+        <p className="text-slate-600">
+          你已阵亡……可以用 <span className="text-amber-600">{character?.coins ?? 0} 代码币</span> 复活并恢复全部生命值，
           继续完成挑战。离开后进度将保留，可重新挑战。
         </p>
       </Modal>

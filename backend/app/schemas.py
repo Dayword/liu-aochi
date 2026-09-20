@@ -247,6 +247,138 @@ class CodeRunOut(BaseModel):
     time_ms: int
 
 
+# ---------- 引导式学习 ----------
+class LearnPointBrief(BaseModel):
+    code: str
+    order_no: int        # 科目内序号
+    title: str
+    summary: str
+    stage: str = ""      # 科目内的分组
+    subject: str = ""    # 所属科目（前端按它分 Tab）
+    runner: str = "python"   # python / sql / none —— 决定右侧写代码还是写 SQL
+    status: str          # locked / unlocked / completed
+
+
+class LearnQuizItem(BaseModel):
+    """下发给前端的习题（不含答案与解析，判定在服务端做）。"""
+
+    index: int
+    type: str            # choice / judge / blank / short / applied
+    stem: str
+    options: list[str] = []
+    hint: str = ""       # 填空提示，例如「一个单词」
+
+
+class LearnQuizSubmitIn(BaseModel):
+    code: str
+    index: int
+    answer: Any          # choice/判断用 int|bool，填空与主观题用 str
+
+
+class LearnQuizResult(BaseModel):
+    correct: Optional[bool] = None   # 主观题为 None —— 不阻塞通过，只给对照
+    correct_answer: str = ""
+    explanation: str = ""
+    coverage: Optional[float] = None  # 主观题：提到了多少比例的关键要点
+    missing: list[str] = []
+    reference: str = ""              # 参考答案 / 答题要点
+    lesson_completed: bool = False
+    next_code: Optional[str] = None
+
+
+class LearnPointDetail(LearnPointBrief):
+    definition: str
+    plain: str
+    example: str
+    example_output: str
+    pitfalls: list[str]
+    task: str
+    setup: str           # 题目预置代码（用户不能改）
+    starter: str         # 编辑器初始内容
+    hint: str
+    last_code: str = ""  # 上次写的代码
+    has_task: bool = False       # 是否有动手写代码的题
+    code_passed: bool = False
+    quizzes: list[LearnQuizItem] = []
+    quiz_state: dict = {}
+    next_code: Optional[str] = None   # 课程里的下一个知识点（用于「已完成」时的跳转）
+
+
+class LearnCheckIn(BaseModel):
+    code: str
+    user_code: str
+
+
+class LearnCheckOut(BaseModel):
+    passed: bool
+    output: str = ""
+    error: str = ""
+    reason: str = ""     # 未通过时的可读原因
+    solved: int = 0      # 通过了几组用例 / 共几组
+    total: int = 0
+    lesson_completed: bool = False    # 动手题与客观题都过关，整个知识点才算完成
+    next_code: Optional[str] = None   # 通过后解锁的下一个知识点
+
+
+class LearnHintIn(BaseModel):
+    code: str
+    user_code: str
+    reason: str = ""
+
+
+class LearnHintOut(BaseModel):
+    hint: str
+
+
+# ---------- 消消乐闯关 ----------
+class Match3StartIn(BaseModel):
+    level_code: str
+
+
+class Match3StartOut(BaseModel):
+    level_code: str
+    name: str
+    subject: str
+    difficulty: int
+    rows: int
+    cols: int
+    gem_types: int
+    moves: int                 # 可用步数
+    target_score: int          # 过关目标分
+
+
+class Match3QuestionOut(BaseModel):
+    question_id: int
+    stem: str
+    options: list[str]
+    subject: str
+    source: str                # ai / seed
+
+
+class Match3AnswerIn(BaseModel):
+    question_id: int
+    answer_index: int
+
+
+class Match3AnswerOut(BaseModel):
+    correct: bool
+    correct_index: int
+    explanation: str
+
+
+class Match3CompleteIn(BaseModel):
+    level_code: str
+    score: int
+    moves_used: int
+
+
+class Match3CompleteOut(BaseModel):
+    completed: bool
+    exp_gained: int
+    coins_gained: int
+    unlocked_next: Optional[str] = None
+
+
 # ---------- 成长 ----------
 class AchievementOut(BaseModel):
     code: str

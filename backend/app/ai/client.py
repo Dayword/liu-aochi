@@ -36,11 +36,13 @@ def _http_client() -> httpx.AsyncClient:
     return _http
 
 
-async def llm_chat(messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096) -> str:
+async def llm_chat(messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096,
+                   timeout: float | None = None) -> str:
     """调用 OpenAI 兼容 chat/completions 接口。
 
     max_tokens 需给足：推理模型（如 glm-5.3）的思考过程同样计入该预算，
     预留过小会导致 content 为空串。
+    timeout 不传则用全局 AI_TIMEOUT；后台预取类调用（用户不在等）可以单独放宽。
     """
     if not ai_enabled():
         raise RuntimeError("AI 未配置")
@@ -48,7 +50,9 @@ async def llm_chat(messages: list[dict], temperature: float = 0.7, max_tokens: i
     headers = {"Authorization": f"Bearer {settings.AI_API_KEY}", "Content-Type": "application/json"}
     payload = {"model": settings.AI_MODEL, "messages": messages,
                "temperature": temperature, "max_tokens": max_tokens}
-    resp = await _http_client().post(url, json=payload, headers=headers)
+    resp = await _http_client().post(
+        url, json=payload, headers=headers,
+        timeout=timeout if timeout is not None else settings.AI_TIMEOUT)
     resp.raise_for_status()
     data = resp.json()
     choice = data["choices"][0]
@@ -299,6 +303,11 @@ def _mock_code(message: str) -> str:
 _OPTION_PREFIX = re.compile(r"^(?:[（(]\s*[A-Ha-h]\s*[）)]|[A-Ha-h]\s*[.、)．:：])\s*")
 
 
+def strip_option_prefix(options: list) -> list[str]:
+    """剥掉选项文本自带的 "A. " 前缀（前端会自己加 A/B/C/D，重复会出现 "A.A. xxx"）。"""
+    return [_OPTION_PREFIX.sub("", str(o)).strip() or str(o).strip() for o in options]
+
+
 def _normalize_quiz(raw: Any) -> list[dict]:
     """校验并规整模型出的题目，丢弃结构不合法的条目。"""
     out: list[dict] = []
@@ -405,7 +414,7 @@ def pick_bank_quiz(db: Session, text: str, user_id: int | None = None,
     out: list[dict] = []
 
     def _append(q: Question) -> None:
-        out.append({"stem": q.stem, "options": list(q.options),
+        out.append({"stem": q.stem, "options": strip_option_prefix(q.options),
                     "answer_index": q.answer["correct_index"],
                     "explanation": q.explanation or ""})
 
@@ -433,7 +442,8 @@ async def wrong_answer_analysis(db: Session, question: dict, user_answer: Any) -
                 {"role": "user", "content": f"题目：{question.get('stem')}\n正确答案：{question.get('expected')}\n"
                                             f"用户答案：{user_answer}\n解析参考：{question.get('explanation', '')}"},
             ]
-            return await llm_chat(messages, temperature=0.4, max_tokens=1024)
+            # 推理模型的思考过程也占 max_tokens，预算给不够会直接返回空串
+            return await llm_chat(messages, temperature=0.4, max_tokens=3072)
         except Exception:
             pass
     return _mock_wrong_analysis(question, user_answer)
@@ -450,18 +460,35 @@ def _mock_wrong_analysis(question: dict, user_answer: Any) -> str:
 
 # ---------- 动态出题（AI） ----------
 async def ai_generate_question(db: Session, tags: list[str], difficulty: int,
-                               exclude_ids: list[int]) -> dict | None:
-    """AI 实时生成题目；失败或无配置时返回 None，由题库兜底。"""
+                               exclude_ids: list[int],
+                               avoid: list[str] | None = None) -> dict | None:
+    """AI 实时生成题目；失败或无配置时返回 None，由题库兜底。
+
+    avoid 传入近期已出过的题干，避免连续失败时反复刷到雷同的题。
+    """
     if not ai_enabled():
         return None
     try:
-        prompt = (f"为软件工程学习平台生成 1 道{difficulty}星难度、知识点为「{'、'.join(tags[:3])}」的单选题。"
+        avoid_hint = ""
+        if avoid:
+            avoid_hint = ("不要与下面这些题重复或高度相似：\n"
+                          + "\n".join(f"- {s[:60]}" for s in avoid[:8]) + "\n")
+        prompt = (f"为软件工程学习平台生成 1 道{difficulty}星难度、知识点为「{'、'.join(tags[:3])}」的单选题。\n"
+                  f"{PYTHON_ONLY_RULE}"
+                  "涉及代码示例时一律用 Python，不要出其它语言相关的题目。\n"
+                  f"{avoid_hint}"
                   "格式（JSON）：{\"type\":\"choice\",\"stem\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],"
                   "\"answer\":\"正确选项文本\",\"explanation\":\"解析\",\"knowledge_point\":\"...\"} 只输出 JSON。")
-        text = await llm_chat([{"role": "user", "content": prompt}], temperature=0.9, max_tokens=2048)
+        # 2048 实测会截断（思考过程吃掉大半），导致出题失败退回题库兜底。
+        # 出题是在后台预取的、用户不在等，所以超时单独放宽到 90s 提高成功率。
+        text = await llm_chat([{"role": "user", "content": prompt}],
+                              temperature=0.9, max_tokens=4096, timeout=90)
         data = _extract_json(text) or {}
         options = data.get("options", [])
         answer = data.get("answer", "")
+        # 模型常把选项写成 "A. xxx"，而前端会自己加 A/B/C/D 前缀，需要剥掉
+        options = strip_option_prefix(options)
+        answer = strip_option_prefix([answer])[0] if answer else answer
         if answer in options and len(options) >= 2:
             return {"type": "choice", "subject": "AI动态", "tags": tags, "difficulty": difficulty,
                     "stem": data.get("stem", ""), "options": options,
@@ -481,7 +508,7 @@ async def interview_score(question: str, answer: str, keywords: list[str]) -> di
             messages = [{"role": "system", "content": "你是面试评分系统。按四维度各 0-100 打分，只输出 JSON："
                           "{\"技术准确性\":80,\"逻辑清晰度\":70,\"表达流畅度\":85,\"STAR法则\":60,\"点评\":\"...\",\"建议\":\"...\"}"},
                         {"role": "user", "content": f"问题：{question}\n关键词：{keywords}\n回答：{answer}"}]
-            text = await llm_chat(messages, temperature=0.3, max_tokens=1024)
+            text = await llm_chat(messages, temperature=0.3, max_tokens=3072)
             data = _extract_json(text) or {}
             dims = {k: max(0, min(100, int(v))) for k, v in data.items() if k in
                     ("技术准确性", "逻辑清晰度", "表达流畅度", "STAR法则")}

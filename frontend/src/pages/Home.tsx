@@ -85,29 +85,29 @@ export default function Home() {
           <div className="text-6xl">{character.identity === '求职中' ? '💼' : '🎓'}</div>
           <div className="flex-1 min-w-[220px]">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-indigo-100">{character.name}</h2>
-              <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs">
+              <h2 className="text-xl font-bold text-indigo-800">{character.name}</h2>
+              <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-xs">
                 {character.class_name}
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-xs">
+              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-600 text-xs">
                 {character.title}
               </span>
             </div>
             <div className="mt-3 flex items-center gap-3">
-              <div className="text-3xl font-black text-indigo-300">Lv.{character.level}</div>
+              <div className="text-3xl font-black text-indigo-600">Lv.{character.level}</div>
               <div className="flex-1">
                 <Progress
                   percent={expPct}
-                  strokeColor="#a78bfa"
-                  trailColor="#2a2d52"
+                  strokeColor="#7c3aed"
+                  trailColor="#e2e8f0"
                   format={() => `${character.exp}/${character.exp_to_next} EXP`}
                 />
               </div>
             </div>
             <div className="flex gap-5 mt-2 text-sm">
-              <span className="text-amber-300">🪙 {character.coins} 代码币</span>
-              <span className="text-rose-300">❤️ {character.hp}/{character.max_hp}</span>
-              <span className="text-slate-400">🔥 连续 {character.streak_days} 天</span>
+              <span className="text-amber-600">🪙 {character.coins} 代码币</span>
+              <span className="text-rose-600">❤️ {character.hp}/{character.max_hp}</span>
+              <span className="text-slate-500">🔥 连续 {character.streak_days} 天</span>
             </div>
           </div>
           <div className="flex flex-col gap-2">
@@ -124,15 +124,15 @@ export default function Home() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 每日任务 */}
         <div className="game-panel p-5">
-          <h3 className="font-semibold text-indigo-200 mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-indigo-700 mb-4 flex items-center gap-2">
             <span className="text-xl">📋</span> 每日任务
           </h3>
           <div className="space-y-3">
             {dailyTasks.map((t) => (
-              <div key={t.code} className="p-3 rounded-xl bg-white/5 border border-indigo-500/10">
+              <div key={t.code} className="p-3 rounded-xl bg-slate-50 border border-indigo-100">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-200">{t.name}</span>
-                  <span className="text-[11px] text-amber-300">
+                  <span className="text-sm text-slate-700">{t.name}</span>
+                  <span className="text-[11px] text-amber-600">
                     +{t.exp_reward} EXP · +{t.coin_reward}🪙
                   </span>
                 </div>
@@ -140,8 +140,8 @@ export default function Home() {
                   <Progress
                     percent={Math.min(100, (t.progress / t.target) * 100)}
                     size="small"
-                    strokeColor={t.done ? '#34d399' : '#818cf8'}
-                    trailColor="#2a2d52"
+                    strokeColor={t.done ? '#34d399' : '#6366f1'}
+                    trailColor="#e2e8f0"
                     format={() => `${t.progress}/${t.target}`}
                   />
                   {t.done && !t.claimed ? (
@@ -149,7 +149,7 @@ export default function Home() {
                       领取
                     </Button>
                   ) : t.claimed ? (
-                    <span className="text-[11px] text-emerald-400">✓ 已领取</span>
+                    <span className="text-[11px] text-emerald-600">✓ 已领取</span>
                   ) : null}
                 </div>
               </div>
@@ -160,21 +160,21 @@ export default function Home() {
 
         {/* 中间：关卡进度 */}
         <div className="game-panel p-5">
-          <h3 className="font-semibold text-indigo-200 mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-indigo-700 mb-4 flex items-center gap-2">
             <span className="text-xl">🗺️</span> 冒险进度
           </h3>
           <div className="text-center py-4">
-            <div className="text-5xl font-black text-indigo-300">
+            <div className="text-5xl font-black text-indigo-600">
               {completedCount}
               <span className="text-xl text-slate-500"> / {levels.length}</span>
             </div>
-            <div className="text-xs text-slate-400 mt-1">已通关关卡</div>
+            <div className="text-xs text-slate-500 mt-1">已通关关卡</div>
           </div>
           <div className="space-y-2">
             {scenes.slice(0, 4).map((s) => (
               <div key={s.name} className="flex items-center gap-2 text-sm">
                 <span>{s.icon}</span>
-                <span className="text-slate-300 flex-1 truncate">{s.name}</span>
+                <span className="text-slate-600 flex-1 truncate">{s.name}</span>
                 <span className="text-[11px] text-slate-500">
                   {s.completed_count}/{s.level_count}
                 </span>
@@ -183,14 +183,14 @@ export default function Home() {
                   size="small"
                   style={{ width: 60 }}
                   strokeColor="#34d399"
-                  trailColor="#2a2d52"
+                  trailColor="#e2e8f0"
                   showInfo={false}
                 />
               </div>
             ))}
           </div>
-          <div className="mt-4 text-xs text-slate-400">
-            已解锁 <span className="text-emerald-400">{unlockedCount}</span> 个关卡，继续闯关解锁下一场景！
+          <div className="mt-4 text-xs text-slate-500">
+            已解锁 <span className="text-emerald-600">{unlockedCount}</span> 个关卡，继续闯关解锁下一场景！
           </div>
           <Link to="/levels">
             <Button type="primary" block className="mt-3 glow-btn">
@@ -201,24 +201,24 @@ export default function Home() {
 
         {/* 排行榜 */}
         <div className="game-panel p-5">
-          <h3 className="font-semibold text-indigo-200 mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-indigo-700 mb-4 flex items-center gap-2">
             <span className="text-xl">🏆</span> 冒险者总榜
           </h3>
           <div className="space-y-2">
             {leaderboard.map((e) => (
-              <div key={e.rank} className="flex items-center gap-3 text-sm px-2 py-1.5 rounded-lg bg-white/5">
-                <span className={`w-6 text-center font-bold ${e.rank <= 3 ? 'text-amber-300' : 'text-slate-500'}`}>
+              <div key={e.rank} className="flex items-center gap-3 text-sm px-2 py-1.5 rounded-lg bg-slate-50">
+                <span className={`w-6 text-center font-bold ${e.rank <= 3 ? 'text-amber-600' : 'text-slate-500'}`}>
                   {e.rank}
                 </span>
                 <span className="text-lg">{e.rank <= 3 ? ['🥇', '🥈', '🥉'][e.rank - 1] : ''}</span>
-                <span className="flex-1 truncate text-slate-200">{e.character_name}</span>
+                <span className="flex-1 truncate text-slate-700">{e.character_name}</span>
                 <span className="text-[11px] text-slate-500">{e.class_name}</span>
-                <span className="text-[11px] text-indigo-300">Lv.{e.level}</span>
-                <span className="text-[11px] text-amber-300">{e.total_exp}</span>
+                <span className="text-[11px] text-indigo-600">Lv.{e.level}</span>
+                <span className="text-[11px] text-amber-600">{e.total_exp}</span>
               </div>
             ))}
           </div>
-          <Link to="/profile" className="block text-center text-xs text-indigo-300 hover:text-indigo-200 mt-3">
+          <Link to="/profile" className="block text-center text-xs text-indigo-600 hover:text-indigo-700 mt-3">
             查看完整排行榜与我的成就 →
           </Link>
         </div>
@@ -238,8 +238,8 @@ export default function Home() {
               className="game-panel p-5 text-center h-full"
             >
               <div className="text-4xl mb-2">{item.icon}</div>
-              <div className="font-medium text-indigo-200">{item.title}</div>
-              <div className="text-[11px] text-slate-400 mt-1">{item.desc}</div>
+              <div className="font-medium text-indigo-700">{item.title}</div>
+              <div className="text-[11px] text-slate-500 mt-1">{item.desc}</div>
             </motion.div>
           </Link>
         ))}

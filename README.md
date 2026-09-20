@@ -86,7 +86,7 @@ python run.py
 # 或：python -m uvicorn app.main:app --reload
 ```
 
-启动后：API 文档 http://127.0.0.1:8000/docs
+启动后：API 文档 http://127.0.0.1:8001/docs
 
 ### 2. 前端
 
@@ -96,7 +96,7 @@ cd frontend
 # 安装依赖（国内加速：npmmirror）
 npm install --registry=https://registry.npmmirror.com
 
-# 开发模式（已配置 /api 代理到后端 8000 端口）
+# 开发模式（已配置 /api 代理到后端 8001 端口）
 npm run dev
 ```
 

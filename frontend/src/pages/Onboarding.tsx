@@ -76,15 +76,15 @@ export default function Onboarding() {
         className="game-panel w-full max-w-2xl p-8"
       >
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-indigo-200">⚔️ 新手村 · 角色创建</h1>
-          <p className="text-slate-400 text-sm mt-1">选择你的冒险之路，1 分钟完成引导</p>
+          <h1 className="text-2xl font-bold text-indigo-700">⚔️ 新手村 · 角色创建</h1>
+          <p className="text-slate-500 text-sm mt-1">选择你的冒险之路，1 分钟完成引导</p>
         </div>
         <Steps current={step} items={steps} size="small" className="mb-8" />
 
         {step === 0 && (
           <div className="space-y-6">
             <div>
-              <div className="text-sm text-slate-400 mb-2">你的身份是？</div>
+              <div className="text-sm text-slate-500 mb-2">你的身份是？</div>
               <Segmented
                 block
                 size="large"
@@ -97,7 +97,7 @@ export default function Onboarding() {
               />
             </div>
             <div>
-              <div className="text-sm text-slate-400 mb-2">冒险者昵称</div>
+              <div className="text-sm text-slate-500 mb-2">冒险者昵称</div>
               <Input
                 size="large"
                 placeholder="例如：阿测、代码侠"
@@ -117,14 +117,14 @@ export default function Onboarding() {
                 onClick={() => setClassKey(c.key)}
                 className={`text-left p-4 rounded-2xl border transition-all ${
                   classKey === c.key
-                    ? 'border-indigo-400 bg-indigo-500/15 shadow-lg'
-                    : 'border-indigo-500/20 bg-white/5 hover:border-indigo-400/60'
+                    ? 'border-indigo-400 bg-indigo-50 shadow-lg'
+                    : 'border-indigo-200 bg-slate-50 hover:border-indigo-400/60'
                 }`}
               >
                 <div className="text-2xl mb-1">{c.emoji}</div>
-                <div className="font-medium text-indigo-200">{c.name}</div>
-                <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">{c.desc}</div>
-                <div className="text-[11px] text-amber-300/80 mt-2">{c.stack.join(' · ')}</div>
+                <div className="font-medium text-indigo-700">{c.name}</div>
+                <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">{c.desc}</div>
+                <div className="text-[11px] text-amber-600/80 mt-2">{c.stack.join(' · ')}</div>
               </button>
             ))}
           </div>
@@ -133,9 +133,9 @@ export default function Onboarding() {
         {step === 2 && (
           <div className="space-y-6">
             {testQuestions.map((q, i) => (
-              <div key={q.question_id} className="p-4 rounded-2xl bg-white/5 border border-indigo-500/15">
+              <div key={q.question_id} className="p-4 rounded-2xl bg-slate-50 border border-indigo-100">
                 <div className="text-xs text-slate-500 mb-1">入门测试 {i + 1}/3 · {q.subject}</div>
-                <div className="text-sm text-slate-200 mb-3">{q.stem}</div>
+                <div className="text-sm text-slate-700 mb-3">{q.stem}</div>
                 <div className="grid gap-2">
                   {q.options.map((opt, oi) => (
                     <button
@@ -147,8 +147,8 @@ export default function Onboarding() {
                       }}
                       className={`text-left px-3 py-2 rounded-xl text-sm border transition-all ${
                         answers[i] === oi
-                          ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100'
-                          : 'border-indigo-500/20 text-slate-300 hover:border-indigo-400/60'
+                          ? 'border-indigo-400 bg-indigo-100 text-indigo-800'
+                          : 'border-indigo-200 text-slate-600 hover:border-indigo-400/60'
                       }`}
                     >
                       {opt}

@@ -224,3 +224,107 @@ export interface Profile {
   radar: { subjects: string[]; scores: number[] }
   recent_levels: { code: string; name: string; icon: string; best_score: number }[]
 }
+
+/** /api/code/run 的返回：沙箱执行结果 */
+export interface CodeRunResult {
+  stdout: string
+  stderr: string
+  exit_code: number
+  time_ms: number
+}
+
+// ---------- 引导式学习 ----------
+export interface LearnPointBrief {
+  code: string
+  order_no: number
+  title: string
+  summary: string
+  stage: string
+  subject: string
+  runner: 'python' | 'sql' | 'none'
+  status: 'locked' | 'unlocked' | 'completed'
+}
+
+export type QuizType = 'choice' | 'judge' | 'blank' | 'short' | 'applied'
+
+export interface LearnQuizItem {
+  index: number
+  type: QuizType
+  stem: string
+  options: string[]
+  hint: string
+}
+
+export interface LearnPointDetail extends LearnPointBrief {
+  definition: string
+  plain: string
+  example: string
+  example_output: string
+  pitfalls: string[]
+  task: string
+  setup: string
+  starter: string
+  hint: string
+  last_code: string
+  has_task: boolean
+  code_passed: boolean
+  quizzes: LearnQuizItem[]
+  quiz_state: Record<string, { correct?: boolean; seen?: boolean }>
+  next_code: string | null
+}
+
+export interface LearnCheckResult {
+  passed: boolean
+  output: string
+  error: string
+  reason: string
+  solved: number
+  total: number
+  lesson_completed: boolean
+  next_code: string | null
+}
+
+export interface LearnQuizResult {
+  correct: boolean | null
+  correct_answer: string
+  explanation: string
+  coverage: number | null
+  missing: string[]
+  reference: string
+  lesson_completed: boolean
+  next_code: string | null
+}
+
+// ---------- 消消乐闯关 ----------
+export interface Match3Start {
+  level_code: string
+  name: string
+  subject: string
+  difficulty: number
+  rows: number
+  cols: number
+  gem_types: number
+  moves: number
+  target_score: number
+}
+
+export interface Match3Question {
+  question_id: number
+  stem: string
+  options: string[]
+  subject: string
+  source: string
+}
+
+export interface Match3AnswerResult {
+  correct: boolean
+  correct_index: number
+  explanation: string
+}
+
+export interface Match3CompleteResult {
+  completed: boolean
+  exp_gained: number
+  coins_gained: number
+  unlocked_next: string | null
+}

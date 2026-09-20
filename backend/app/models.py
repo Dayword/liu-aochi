@@ -88,6 +88,22 @@ class UserLevelProgress(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class LearnProgress(Base):
+    """引导式学习的知识点进度：按顺序解锁，只有判定通过才算完成。"""
+
+    __tablename__ = "learn_progress"
+    __table_args__ = (UniqueConstraint("user_id", "point_code", name="uq_user_learn"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    point_code: Mapped[str] = mapped_column(String(32), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="unlocked")  # unlocked/completed
+    attempts: Mapped[int] = mapped_column(Integer, default=0)            # 运行判定的次数
+    last_code: Mapped[str] = mapped_column(Text, default="")             # 上次写的代码，刷新后还能接着改
+    code_passed: Mapped[bool] = mapped_column(Boolean, default=False)    # 动手题是否已通过
+    quiz_json: Mapped[dict] = mapped_column(JSON, default=dict)          # 习题作答：{"0": {"correct": true}}
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 # ---------- 题库 ----------
 class Question(Base):
     __tablename__ = "questions"

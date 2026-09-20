@@ -7,6 +7,8 @@ import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
 import LevelMap from './pages/LevelMap'
 import Quest from './pages/Quest'
+import Match3 from './pages/Match3'
+import Learn from './pages/Learn'
 import Chat from './pages/Chat'
 import Interview from './pages/Interview'
 import BugHunter from './pages/BugHunter'
@@ -67,6 +69,16 @@ function Routing() {
           }
         />
         <Route
+          path="/learn"
+          element={
+            <RequireAuth>
+              <RequireOnboard>
+                <Learn />
+              </RequireOnboard>
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/levels"
           element={
             <RequireAuth>
@@ -82,6 +94,16 @@ function Routing() {
             <RequireAuth>
               <RequireOnboard>
                 <Quest />
+              </RequireOnboard>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/match3/:levelCode"
+          element={
+            <RequireAuth>
+              <RequireOnboard>
+                <Match3 />
               </RequireOnboard>
             </RequireAuth>
           }

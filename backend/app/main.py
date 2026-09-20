@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import Base, engine
-from .routers import (auth, bug_hunter, chat, code, growth, interview, levels,
-                      quests, user)
+from .routers import (auth, bug_hunter, chat, code, games, growth, interview,
+                      learn, levels, quests, user)
 
 
 async def _warm_up_ai() -> None:
@@ -51,6 +51,8 @@ app.include_router(interview.router)
 app.include_router(bug_hunter.router)
 app.include_router(code.router)
 app.include_router(growth.router)
+app.include_router(games.router)
+app.include_router(learn.router)
 
 
 @app.get("/api/health")

@@ -11,12 +11,12 @@ export default {
           light: '#818cf8',
         },
         adventure: {
-          bg: '#0f1023',
-          panel: '#1a1c3b',
-          gold: '#fbbf24',
-          exp: '#a78bfa',
-          hp: '#fb7185',
-          coin: '#fbbf24',
+          bg: '#f6f7fb',
+          panel: '#ffffff',
+          gold: '#d97706',
+          exp: '#7c3aed',
+          hp: '#e11d48',
+          coin: '#d97706',
         },
       },
       fontFamily: {

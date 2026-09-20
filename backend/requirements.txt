@@ -10,3 +10,6 @@ bcrypt>=4.0.1
 python-multipart>=0.0.12
 httpx>=0.27.0
 redis>=5.0.4
+# 「数据分析与处理」这门课的动手题会真的跑 numpy / pandas，部署时必须装上
+numpy>=1.26
+pandas>=2.1

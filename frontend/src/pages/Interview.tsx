@@ -112,38 +112,38 @@ export default function Interview() {
       <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="game-panel p-8 max-w-3xl mx-auto">
         <div className="text-center mb-6">
           <div className="text-6xl mb-2">{report.grade === 'S' || report.grade === 'A' ? '🏆' : report.grade === 'B' ? '💪' : '📚'}</div>
-          <h1 className="text-2xl font-bold text-indigo-200">面试报告</h1>
-          <div className="mt-2 inline-block px-4 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold text-lg">
+          <h1 className="text-2xl font-bold text-indigo-700">面试报告</h1>
+          <div className="mt-2 inline-block px-4 py-1 rounded-full bg-amber-100 text-amber-600 font-bold text-lg">
             {report.offer === '虚拟 Offer' ? '🎉 虚拟 Offer！' : '继续修炼，再战一轮'}
           </div>
-          <div className="text-slate-400 text-sm mt-1">
-            综合评分 <span className="text-indigo-300 font-bold text-xl">{report.overall}</span> 分 · 评级{' '}
-            <span className="text-amber-300 font-bold">{report.grade}</span>
+          <div className="text-slate-500 text-sm mt-1">
+            综合评分 <span className="text-indigo-600 font-bold text-xl">{report.overall}</span> 分 · 评级{' '}
+            <span className="text-amber-600 font-bold">{report.grade}</span>
           </div>
         </div>
 
         <div className="grid gap-3 mb-6">
           {DIMS.map((d) => (
             <div key={d} className="flex items-center gap-3">
-              <span className="w-24 text-sm text-slate-300">{d}</span>
+              <span className="w-24 text-sm text-slate-600">{d}</span>
               <Progress
                 percent={dims[d] || 0}
-                strokeColor={dims[d] >= 75 ? '#34d399' : dims[d] >= 60 ? '#fbbf24' : '#f87171'}
-                trailColor="#2a2d52"
+                strokeColor={dims[d] >= 75 ? '#34d399' : dims[d] >= 60 ? '#d97706' : '#dc2626'}
+                trailColor="#e2e8f0"
               />
-              <span className="w-8 text-right text-sm text-slate-400">{dims[d] || 0}</span>
+              <span className="w-8 text-right text-sm text-slate-500">{dims[d] || 0}</span>
             </div>
           ))}
         </div>
 
-        <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-sm text-slate-300 leading-relaxed">
-          <span className="text-emerald-400">✅ 优势：</span>
+        <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-sm text-slate-600 leading-relaxed">
+          <span className="text-emerald-600">✅ 优势：</span>
           {report.strong_point}
           <br />
-          <span className="text-rose-400">⚠️ 短板：</span>
+          <span className="text-rose-600">⚠️ 短板：</span>
           {report.weak_point}
           <br />
-          <span className="text-indigo-300">💡 建议：</span>
+          <span className="text-indigo-600">💡 建议：</span>
           {report.advice}
         </div>
 
@@ -169,15 +169,15 @@ export default function Interview() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-indigo-200">🎤 面试闯关</h1>
-        <p className="text-slate-400 text-sm mt-1">模拟真实面试全流程：一面基础面 → 二面深度面 → 三面主管面 → HR面</p>
+        <h1 className="text-2xl font-bold text-indigo-700">🎤 面试闯关</h1>
+        <p className="text-slate-500 text-sm mt-1">模拟真实面试全流程：一面基础面 → 二面深度面 → 三面主管面 → HR面</p>
       </div>
 
       {!session ? (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="game-panel p-6 max-w-2xl">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             <div>
-              <div className="text-xs text-slate-400 mb-2">目标岗位方向</div>
+              <div className="text-xs text-slate-500 mb-2">目标岗位方向</div>
               <Select
                 value={classKey}
                 onChange={setClassKey}
@@ -186,11 +186,11 @@ export default function Interview() {
               />
             </div>
             <div>
-              <div className="text-xs text-slate-400 mb-2">目标公司</div>
+              <div className="text-xs text-slate-500 mb-2">目标公司</div>
               <Select value={company} onChange={setCompany} style={{ width: '100%' }} options={COMPANIES.map((c) => ({ value: c, label: c }))} />
             </div>
             <div>
-              <div className="text-xs text-slate-400 mb-2">难度等级</div>
+              <div className="text-xs text-slate-500 mb-2">难度等级</div>
               <Select
                 value={difficulty}
                 onChange={setDifficulty}
@@ -206,11 +206,11 @@ export default function Interview() {
           <Button type="primary" size="large" block loading={sending} onClick={start} className="glow-btn">
             开始模拟面试
           </Button>
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-[11px] text-slate-400">
-            <div className="p-2 bg-white/5 rounded-lg">🎯 岗位题库匹配</div>
-            <div className="p-2 bg-white/5 rounded-lg">🔍 动态追问机制</div>
-            <div className="p-2 bg-white/5 rounded-lg">📊 四维实时评分</div>
-            <div className="p-2 bg-white/5 rounded-lg">📜 完整面试报告</div>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-[11px] text-slate-500">
+            <div className="p-2 bg-slate-50 rounded-lg">🎯 岗位题库匹配</div>
+            <div className="p-2 bg-slate-50 rounded-lg">🔍 动态追问机制</div>
+            <div className="p-2 bg-slate-50 rounded-lg">📊 四维实时评分</div>
+            <div className="p-2 bg-slate-50 rounded-lg">📜 完整面试报告</div>
           </div>
         </motion.div>
       ) : (
@@ -218,10 +218,10 @@ export default function Interview() {
           <div className="flex items-center gap-3 mb-5 flex-wrap">
             <span className="text-3xl">👔</span>
             <div>
-              <div className="font-medium text-slate-100">
+              <div className="font-medium text-slate-800">
                 {session.interviewer_name} · {company}
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-500">
                 {ROUND_NAMES[session.round_no]}（第 {session.round_no}/4 轮）· {character?.class_name}
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function Interview() {
               {[1, 2, 3, 4].map((r) => (
                 <span
                   key={r}
-                  className={`w-8 h-2 rounded-full ${r <= session.round_no ? 'bg-indigo-400' : 'bg-slate-700'}`}
+                  className={`w-8 h-2 rounded-full ${r <= session.round_no ? 'bg-indigo-400' : 'bg-slate-200'}`}
                 />
               ))}
             </div>
@@ -240,7 +240,7 @@ export default function Interview() {
             {history.map((m, i) => {
               if (m.role === 'system') {
                 return (
-                  <div key={i} className="text-center text-xs text-amber-300 py-1">
+                  <div key={i} className="text-center text-xs text-amber-600 py-1">
                     {m.content}
                   </div>
                 )
@@ -251,9 +251,9 @@ export default function Interview() {
                     key={i}
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    className="max-w-[85%] ml-auto bg-indigo-500/20 border border-indigo-500/30 rounded-2xl px-4 py-3 text-sm text-indigo-100 whitespace-pre-wrap"
+                    className="max-w-[85%] ml-auto bg-indigo-100 border border-indigo-300 rounded-2xl px-4 py-3 text-sm text-indigo-800 whitespace-pre-wrap"
                   >
-                    <div className="text-[10px] text-indigo-300/70 mb-1 text-right">我</div>
+                    <div className="text-[10px] text-indigo-600/70 mb-1 text-right">我</div>
                     {m.content}
                   </motion.div>
                 )
@@ -263,7 +263,7 @@ export default function Interview() {
                   key={i}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="max-w-[85%] bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-slate-200 whitespace-pre-wrap"
+                  className="max-w-[85%] bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap"
                 >
                   <div className="text-[10px] text-slate-500 mb-1">面试官</div>
                   {m.content}
@@ -274,9 +274,9 @@ export default function Interview() {
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-2xl border border-indigo-500/30 bg-indigo-500/10"
+                className="p-4 rounded-2xl border border-indigo-300 bg-indigo-50"
               >
-                <div className="font-medium text-indigo-200 mb-2">
+                <div className="font-medium text-indigo-700 mb-2">
                   {roundResult.round_finished ? `📊 ${ROUND_NAMES[roundResult.round_no]} 评分` : '📊 本题评分'}
                 </div>
                 {roundResult.round_scores && Object.keys(roundResult.round_scores).length > 0 ? (
@@ -284,18 +284,18 @@ export default function Interview() {
                     {Object.entries(roundResult.round_scores)
                       .filter(([k]) => k !== '点评' && k !== '建议')
                       .map(([k, v]) => (
-                        <div key={k} className="p-2 bg-white/5 rounded-lg">
-                          <div className="text-lg font-bold text-indigo-300">{v}</div>
-                          <div className="text-[10px] text-slate-400">{k}</div>
+                        <div key={k} className="p-2 bg-slate-50 rounded-lg">
+                          <div className="text-lg font-bold text-indigo-600">{v}</div>
+                          <div className="text-[10px] text-slate-500">{k}</div>
                         </div>
                       ))}
                   </div>
                 ) : null}
                 {roundResult.round_scores?.点评 && (
-                  <div className="text-xs text-slate-300 mt-2">{roundResult.round_scores.点评}</div>
+                  <div className="text-xs text-slate-600 mt-2">{roundResult.round_scores.点评}</div>
                 )}
                 {roundResult.round_scores?.建议 && (
-                  <div className="text-xs text-purple-300 mt-1">💡 {roundResult.round_scores.建议}</div>
+                  <div className="text-xs text-purple-600 mt-1">💡 {roundResult.round_scores.建议}</div>
                 )}
                 <Button type="primary" className="mt-3" onClick={continueRound}>
                   {roundResult.round_finished ? `进入 ${ROUND_NAMES[roundResult.round_no + 1] ?? '下一轮'} →` : '下一题 →'}
