@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Avatar, Progress, Tooltip, message } from 'antd'
+import { NavLink, useLocation } from 'react-router-dom'
+import { Avatar, Progress } from 'antd'
 import {
   BookOutlined,
   BugOutlined,
@@ -8,7 +8,6 @@ import {
   CrownOutlined,
   EnvironmentOutlined,
   HomeOutlined,
-  LogoutOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { motion } from 'framer-motion'
@@ -25,9 +24,8 @@ const NAV = [
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { character, logout } = useAuth()
+  const { character, offline } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
   const expPct = useMemo(() => {
     if (!character) return 0
     return Math.min(100, Math.round((character.exp / character.exp_to_next) * 100))
@@ -87,15 +85,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span>🪙 {character.coins}</span>
                 <span>❤️ {character.hp}/{character.max_hp}</span>
               </div>
-              <button
-                onClick={() => {
-                  logout()
-                  navigate('/login')
-                }}
-                className="mt-2 w-full flex items-center justify-center gap-1 text-[11px] text-slate-500 hover:text-rose-600 transition-colors"
-              >
-                <LogoutOutlined /> 退出登录
-              </button>
             </div>
           )}
         </aside>
@@ -109,17 +98,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="text-sm font-medium text-indigo-700">{character.name}</span>
             <span className="text-xs text-amber-600 ml-auto">Lv.{character.level}</span>
             <span className="text-xs text-slate-600">🪙 {character.coins}</span>
-            <Tooltip title="退出登录">
-              <button
-                onClick={() => {
-                  logout()
-                  navigate('/login')
-                }}
-                className="text-slate-500 hover:text-rose-600"
-              >
-                <LogoutOutlined />
-              </button>
-            </Tooltip>
           </div>
         )}
         <motion.div
@@ -132,6 +110,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </motion.div>
       </main>
+
+      {offline && (
+        <div className="fixed bottom-3 right-3 z-50 text-[11px] text-slate-500 bg-white/90 border border-slate-200 rounded-full px-3 py-1 shadow-sm">
+          离线演示模式 · 后端未连接
+        </div>
+      )}
     </div>
   )
 }

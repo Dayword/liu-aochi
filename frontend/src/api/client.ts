@@ -15,8 +15,14 @@ export function getToken(): string | null {
   return localStorage.getItem('ca_token')
 }
 
+// 登录页已移除：业务接口 401 时清空 Token 并整页重载，由「访客直通」重新换一个。
+// 标记位避免接口持续 401 时反复刷新。会话引导自身的 /api/auth/* 不做重载，
+// 交给 AuthProvider 直接降级为访客登录。
+const RELOGIN_FLAG = 'ca_relogin'
+
 export function setToken(token: string) {
   localStorage.setItem('ca_token', token)
+  sessionStorage.removeItem(RELOGIN_FLAG)
 }
 
 export function clearToken() {
@@ -40,9 +46,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     } catch {
       /* ignore */
     }
-    if (resp.status === 401) {
+    if (resp.status === 401 && !path.startsWith('/api/auth/')) {
       clearToken()
-      if (!location.pathname.startsWith('/login')) location.href = '/login'
+      if (!sessionStorage.getItem(RELOGIN_FLAG)) {
+        sessionStorage.setItem(RELOGIN_FLAG, '1')
+        location.reload()
+      }
     }
     throw new ApiError(resp.status, detail)
   }
