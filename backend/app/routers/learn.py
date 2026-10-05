@@ -119,16 +119,44 @@ def _status_of(prog: LearnProgress | None, prev_done: bool) -> str:
 
 
 def _statuses(db: Session, user: User) -> list[tuple[dict, str]]:
-    """按科目分别算状态：每个科目第一课解锁，本科目上一课通过才解锁下一课。"""
+    """按科目分别算状态。
+
+    主线：每个科目第一课解锁，本科目上一课通过才解锁下一课。
+
+    补充课（`point["supplementary"]`）：**不参与主线链条** —— 永远可学，
+    也不改变它后面那节课的解锁状态。这是为了「后加内容不打断老进度」：
+    如果把新增课直接插进链条，学生上次已解锁的那节课会因为
+    「它的前一课变成了新加的、还没过」而被重新锁上。
+    """
     prog = _progress(db, user)
     out: list[tuple[dict, str]] = []
     for subject in SUBJECTS:
         prev_done = True                      # 每科第一课默认解锁
         for point in BY_SUBJECT[subject]:
-            st = _status_of(prog.get(point["code"]), prev_done)
+            row = prog.get(point["code"])
+            if point.get("supplementary"):
+                done = bool(row and row.status == "completed")
+                out.append((point, "completed" if done else "unlocked"))
+                continue                      # 不写回 prev_done，主线链条不受影响
+            st = _status_of(row, prev_done)
             out.append((point, st))
             prev_done = st == "completed"
     return out
+
+
+def _next_unlocked(db: Session, user: User, code: str) -> str | None:
+    """下一课的 code，但**必须是这个学生当前就能进的**。
+
+    补充课之间自成一条链（见 `next_code`），而补充课永远解锁，所以正常都会返回；
+    这里兜底是为了避免出现「点了下一课却 403」。
+    """
+    nxt = next_code(code)
+    if not nxt:
+        return None
+    for p, st in _statuses(db, user):
+        if p["code"] == nxt:
+            return nxt if st != "locked" else None
+    return None
 
 
 OBJECTIVE = ("choice", "judge", "blank")   # 客观题：必须全对
@@ -198,7 +226,8 @@ def _grade_quiz(q: dict, answer) -> dict:
             "explanation": q.get("explanation", "")}
 
 
-def _refresh_completion(db: Session, prog: LearnProgress, point: dict) -> tuple[bool, str | None]:
+def _refresh_completion(db: Session, user: User, prog: LearnProgress,
+                        point: dict) -> tuple[bool, str | None]:
     """动手题通过 + 客观题全对 ⇒ 这一课完成，返回是否完成与下一个知识点。
 
     注意：已完成的知识点**不会因为内容更新而回退**，否则会连带把后面已解锁的课重新锁上。
@@ -215,7 +244,7 @@ def _refresh_completion(db: Session, prog: LearnProgress, point: dict) -> tuple[
         prog.completed_at = now()
         db.commit()
 
-    nxt = next_code(point["code"]) if done else None
+    nxt = _next_unlocked(db, user, point["code"]) if done else None
     return done, nxt
 
 
@@ -266,7 +295,7 @@ def point_detail(code: str, db: Session = Depends(get_db),
         code_passed=bool(prog and prog.code_passed),
         quizzes=quizzes,
         quiz_state=(prog.quiz_json or {}) if prog else {},
-        next_code=next_code(point["code"]),
+        next_code=_next_unlocked(db, user, point["code"]),
     )
 
 
@@ -403,7 +432,7 @@ def check(body: LearnCheckIn, db: Session = Depends(get_db),
     if passed:
         prog.code_passed = True
         db.commit()
-    done, nxt = _refresh_completion(db, prog, point)
+    done, nxt = _refresh_completion(db, user, prog, point)
 
     return LearnCheckOut(passed=passed, output=output, error=error, reason=reason,
                          solved=solved, total=total, lesson_completed=done,
@@ -442,8 +471,8 @@ def quiz(body: LearnQuizSubmitIn, db: Session = Depends(get_db),
     prog.quiz_json = state
     db.commit()
 
-    done, next_code = _refresh_completion(db, prog, point)
-    return LearnQuizResult(**graded, lesson_completed=done, next_code=next_code)
+    done, nxt = _refresh_completion(db, user, prog, point)
+    return LearnQuizResult(**graded, lesson_completed=done, next_code=nxt)
 
 
 @router.post("/hint", response_model=LearnHintOut)

@@ -1414,20 +1414,20 @@ except IndexError as e:
             "面试时先说清「我写的是容易读的版本」，再补一句「原地版用双指针分区」。"
         ),
         "example": (
-            "def quick_sort(nums):\n"
-            "    if len(nums) <= 1:\n"
-            "        return nums\n"
-            "    pivot = nums[len(nums) // 2]          # 取中间值当基准，避开「有序输入」这个坑\n"
-            "    left = [x for x in nums if x < pivot]\n"
-            "    mid = [x for x in nums if x == pivot]  # 相等的单独一组，重复元素不会退化\n"
-            "    right = [x for x in nums if x > pivot]\n"
-            "    return quick_sort(left) + mid + quick_sort(right)\n"
+            "# 快排的一步：选基准，把数组分成 比它小 / 等于 / 比它大 三段\n"
+            "nums = [3, 1, 4, 1, 5, 9, 2, 6]\n"
+            "pivot = nums[len(nums) // 2]              # 取中间值当基准，避开「有序输入」这个坑\n"
+            "small = [x for x in nums if x < pivot]\n"
+            "equal = [x for x in nums if x == pivot]    # 相等的单独一组，重复元素不会退化\n"
+            "big = [x for x in nums if x > pivot]\n"
+            "print(\"基准\", pivot, \"->\", small, equal, big)\n"
             "\n"
-            "print(quick_sort([3, 1, 4, 1, 5, 9, 2, 6]))\n"
-            "\n"
-            "# 稳定性：sorted 是稳定的，同 key 保持原顺序\n"
+            "# 稳定性：sorted 是稳定的，同 key 的元素保持原来的先后顺序\n"
             "pairs = [(\"b\", 1), (\"a\", 2), (\"b\", 3)]\n"
             "print(sorted(pairs, key=lambda p: p[0]))\n"
+            "\n"
+            "# 工程上真正在用的：直接调 sorted（Timsort，稳定、C 实现）\n"
+            "print(sorted(nums))\n"
             "\n"
             "# 面试要求的原地分区（双指针）：返回 pivot 最终所在的下标\n"
             "def partition(nums, lo, hi):\n"
@@ -1445,7 +1445,10 @@ except IndexError as e:
             "print(p, data)          # pivot=2 归位后，左边全是 <2 的元素"
         ),
         "example_output": (
-            "[1, 1, 2, 3, 4, 5, 6, 9]\n[('a', 2), ('b', 1), ('b', 3)]\n2 [1, 1, 2, 3, 5, 9, 4]"
+            "基准 5 -> [3, 1, 4, 1, 2] [5] [9, 6]\n"
+            "[('a', 2), ('b', 1), ('b', 3)]\n"
+            "[1, 1, 2, 3, 4, 5, 6, 9]\n"
+            "2 [1, 1, 2, 3, 5, 9, 4]"
         ),
         "pitfalls": [
             "**快排固定取首元素当 pivot + 已排序输入 → O(n²)**：这是最经典的退化路径，而且递归深度也会变成 `n`，可能直接 `RecursionError`。解法是随机 pivot 或三数取中，取中间下标 `nums[len(nums)//2]` 也能有效缓解。",
@@ -1614,19 +1617,8 @@ except RecursionError as e:
             "这四组恰好覆盖所有边界。判定的用例也是这么设计的。"
         ),
         "example": (
-            "def lower_bound(nums, target):\n"
-            "    \"\"\"第一个 >= target 的下标（也就是插入位置）\"\"\"\n"
-            "    lo, hi = 0, len(nums)        # 左闭右开 [lo, hi)\n"
-            "    while lo < hi:\n"
-            "        mid = (lo + hi) // 2\n"
-            "        if nums[mid] < target:\n"
-            "            lo = mid + 1         # 区间右移，mid 已排除\n"
-            "        else:\n"
-            "            hi = mid             # mid 可能就是答案，保留\n"
-            "    return lo\n"
-            "\n"
+            "# 二分查找的经典模板（闭区间 [lo, hi]）：找到返回下标，找不到返回 -1\n"
             "def search(nums, target):\n"
-            "    \"\"\"存在就返回下标，否则 -1（闭区间模板）\"\"\"\n"
             "    lo, hi = 0, len(nums) - 1\n"
             "    while lo <= hi:\n"
             "        mid = (lo + hi) // 2\n"
@@ -1639,13 +1631,18 @@ except RecursionError as e:
             "    return -1\n"
             "\n"
             "nums = [1, 3, 3, 5, 7]\n"
-            "print(lower_bound(nums, 3))    # 1：第一个 >= 3 的位置\n"
-            "print(lower_bound(nums, 4))    # 3：4 应该插在下标 3\n"
-            "print(lower_bound(nums, 9))    # 5：比所有元素都大，插在末尾\n"
-            "print(lower_bound([], 1))      # 0：空数组\n"
-            "print(search(nums, 5), search(nums, 4))"
+            "print(search(nums, 3))    # 2：有重复元素时它只返回「某一个」，给不出「第一个」\n"
+            "print(search(nums, 4))    # -1：找不到\n"
+            "print(search(nums, 9))    # -1\n"
+            "\n"
+            "# 对照：标准库 bisect_left 的语义就是「第一个 >= target 的下标」（也叫插入位置）\n"
+            "import bisect\n"
+            "print(bisect.bisect_left(nums, 3))    # 1：第一个 3 —— search 给不出这个信息\n"
+            "print(bisect.bisect_left(nums, 4))    # 3：4 应该插在下标 3\n"
+            "print(bisect.bisect_left(nums, 9))    # 5：比所有元素都大，插在末尾\n"
+            "print(bisect.bisect_left([], 1))      # 0：空数组"
         ),
-        "example_output": "1\n3\n5\n0\n3 -1",
+        "example_output": "2\n-1\n-1\n1\n3\n5\n0",
         "pitfalls": [
             "**两个模板混用导致死循环**：`while lo < hi` 里面写了 `lo = mid`（漏掉 `+1`），当 `lo` 和 `hi` 相邻时区间不缩小，程序卡死。死记：`while lo < hi` 时 `lo` 那一路必须 `mid + 1`。",
             "**在无序数组上二分**：二分的前提是有序。对无序数组二分有时也能碰巧找到答案，所以**测试时不容易发现**，但实际上是错的。先确认有序，或者先排序（`O(n log n)`），或者改用 set/dict（`O(n)` 建、`O(1)` 查）。",

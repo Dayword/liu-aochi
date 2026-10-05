@@ -36,11 +36,17 @@ def check_code_safety(code: str) -> str | None:
     return None
 
 
-def run_python(code: str, stdin_data: str = "") -> dict:
-    """执行 Python 代码，返回输出/错误/耗时。"""
+def run_python(code: str, stdin_data: str = "", timeout: int | None = None) -> dict:
+    """执行 Python 代码，返回输出/错误/耗时。
+
+    `timeout` 不传就用配置里的 CODE_RUN_TIMEOUT（学生提交走这条路）；
+    离线自检脚本可以传一个更宽松的值 —— 像 numpy / pandas 首次导入本身就要一秒多，
+    不该因为机器忙就被判成「跑不通」。
+    """
     err = check_code_safety(code)
     if err:
         return {"stdout": "", "stderr": err, "exit_code": 1, "time_ms": 0}
+    limit = timeout or settings.CODE_RUN_TIMEOUT
     start = time.time()
     try:
         proc = subprocess.run(
@@ -48,7 +54,7 @@ def run_python(code: str, stdin_data: str = "") -> dict:
             input=stdin_data,
             capture_output=True,
             text=True,
-            timeout=settings.CODE_RUN_TIMEOUT,
+            timeout=limit,
             creationflags=0x08000000 if sys.platform == "win32" else 0,  # CREATE_NO_WINDOW
         )
         return {
@@ -58,7 +64,7 @@ def run_python(code: str, stdin_data: str = "") -> dict:
             "time_ms": int((time.time() - start) * 1000),
         }
     except subprocess.TimeoutExpired:
-        return {"stdout": "", "stderr": f"运行超时（>{settings.CODE_RUN_TIMEOUT}s）",
+        return {"stdout": "", "stderr": f"运行超时（>{limit}s）",
                 "exit_code": 124, "time_ms": int((time.time() - start) * 1000)}
 
 

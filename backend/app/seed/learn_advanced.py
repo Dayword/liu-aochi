@@ -213,21 +213,35 @@ LESSONS: list[dict] = [
             "```\ndef bad(x, items=[]):     # 错！所有调用共用同一个列表\n    items.append(x)\n    return items\n\ndef good(x, items=None):  # 对\n    if items is None:\n        items = []\n    items.append(x)\n    return items\n```"
         ),
         "example": (
-            "def add_all(*args):\n"
-            "    return sum(args)\n"
+            "# 位置参数个数不定 —— *args 把多出来的位置参数收成元组\n"
+            "def total(*numbers):\n"
+            "    return sum(numbers)\n"
             "\n"
-            "print(add_all(1, 2, 3))        # 6\n"
-            "print(add_all())               # 0\n"
+            "print(total(1, 2, 3))          # 6\n"
+            "print(total())                 # 0：一个都不传也行\n"
             "\n"
-            "def make_config(**kwargs):\n"
-            "    cfg = {\"model\": \"glm-5.3\", \"temperature\": 0.7}\n"
-            "    cfg.update(kwargs)\n"
-            "    return cfg\n"
+            "# 关键字参数个数不定 —— **kwargs 把多出来的关键字参数收成字典\n"
+            "def build(**options):\n"
+            "    print(options)\n"
             "\n"
-            "print(make_config(temperature=0.2))\n"
-            "print(make_config(model=\"x\", top_p=0.9))"
+            "build(model=\"x\", top_p=0.9)\n"
+            "\n"
+            "# 默认参数：调用时省略就用默认值，传了就覆盖\n"
+            "def chat(prompt, temperature=0.7):\n"
+            "    return f\"{prompt} @ {temperature}\"\n"
+            "\n"
+            "print(chat(\"你好\"))\n"
+            "print(chat(\"你好\", 0.2))\n"
+            "\n"
+            "# 调用时的 * / ** 是「解包」，含义和定义时正好相反\n"
+            "params = [\"总结一下\", 0.2]\n"
+            "print(chat(*params))\n"
+            "opts = {\"prompt\": \"你好\", \"temperature\": 0.1}\n"
+            "print(chat(**opts))"
         ),
-        "example_output": "6\n0\n{'model': 'glm-5.3', 'temperature': 0.2}\n{'model': 'x', 'temperature': 0.7, 'top_p': 0.9}",
+        "example_output": (
+            "6\n0\n{'model': 'x', 'top_p': 0.9}\n你好 @ 0.7\n你好 @ 0.2\n总结一下 @ 0.2\n你好 @ 0.1"
+        ),
         "pitfalls": [
             "**默认值不能用可变对象**：`def f(x=[])` 会让所有调用共用同一个列表，这是最经典的坑。",
             "**参数顺序**：位置参数 → 默认参数 → `*args` → `**kwargs`，写反了语法报错。",
@@ -310,7 +324,7 @@ LESSONS: list[dict] = [
             "finally:\n"
             "    print(\"记录日志\")"
         ),
-        "example_output": "128\n转换失败：invalid literal for int() with base 10: 'abc'\n0\n转换失败：int() argument must be a string...\n0\n调用接口\n记录日志",
+        "example_output": "128\n转换失败：invalid literal for int() with base 10: 'abc'\n0\n转换失败：int() argument must be a string, a bytes-like object or a real number, not 'NoneType'\n0\n调用接口\n记录日志",
         "pitfalls": [
             "**`except: pass` 是大坑**：连自己的拼写错误一起吞掉，问题极难定位。至少要记录日志。",
             "**`except` 要写具体类型**：`ValueError` 比裸 `except` 精确，能避免误捕。",
@@ -682,13 +696,15 @@ LESSONS: list[dict] = [
             "print(math.floor(3.7))\n"
             "\n"
             "random.seed(42)                     # 固定随机种子，结果可复现\n"
-            "print(random.choice([\"a\", \"b\", \"c\"]))\n"
-            "print(random.randint(1, 6))\n"
+            "print(round(random.random(), 4))\n"
+            "\n"
+            "# 常用的还有 random.choice(seq) 挑一个、random.randint(a, b) 取范围里的整数 ——\n"
+            "# 它们内部消耗的是同一串随机数，所以 seed 之后结果同样固定。\n"
             "\n"
             "from datetime import datetime\n"
-            "print(datetime.now().year)"
+            "print(datetime(2026, 1, 1).strftime(\"%Y/%m/%d\"))   # 用固定日期演示，避免「今天是几号」影响输出"
         ),
-        "example_output": "3.141592653589793\n4.0\n3\nc\n2\n2026",
+        "example_output": "3.141592653589793\n4.0\n3\n0.6394\n2026/01/01",
         "pitfalls": [
             "**`import` 要放在文件顶部**（约定），不要写在函数中间。",
             "**别用 `from math import *`**：会污染命名空间，还可能覆盖你已有的变量名。",
@@ -743,7 +759,9 @@ LESSONS: list[dict] = [
             "```python\n# 写\nwith open(\"data.txt\", \"w\", encoding=\"utf-8\") as f:\n    f.write(\"hello\")\n\n# 读\nwith open(\"data.txt\", \"r\", encoding=\"utf-8\") as f:\n    text = f.read()\n```\n\n"
             "`with` 会自动关闭文件（即使中途出错）。模式：`r` 读、`w` 覆盖写、`a` 追加、`rb/wb` 二进制。\n\n"
             "路径推荐用 `pathlib`：`from pathlib import Path` → `p = Path(\"data\") / \"a.txt\"`，"
-            "`p.exists()`、`p.read_text(encoding=\"utf-8\")`。"
+            "`p.exists()`、`p.read_text(encoding=\"utf-8\")`。\n\n"
+            "⚠️ 本站在线编辑器的沙箱出于安全考虑**禁止 `import os` / `pathlib`**，"
+            "所以在练习里请用内置的 `open()`；`pathlib` 的写法记住就行，真实项目里很好用。"
         ),
         "plain": (
             "**`encoding=\"utf-8\"` 一定要写**。Windows 上默认编码不是 UTF-8，"
@@ -757,19 +775,23 @@ LESSONS: list[dict] = [
             "读知识库原文、把对话日志落盘。"
         ),
         "example": (
-            "from pathlib import Path\n"
+            "# 本演示沙箱禁止 import os / pathlib，所以用 io.StringIO 模拟「文件对象」，\n"
+            "# 读写方式和真实文件完全一样；真实项目里换成 open(...) 即可（写法见注释）。\n"
+            "import io\n"
             "\n"
-            "p = Path(\"prompt.txt\")\n"
-            "p.write_text(\"你是一个助手\", encoding=\"utf-8\")\n"
-            "print(p.read_text(encoding=\"utf-8\"))\n"
-            "print(p.exists())\n"
+            "# 写：真实项目写成 with open(\"prompt.txt\", \"w\", encoding=\"utf-8\") as f: f.write(...)\n"
+            "buf = io.StringIO()\n"
+            "buf.write(\"你是一个助手\")\n"
+            "print(buf.getvalue())\n"
             "\n"
-            "# 按行读：适合大文件，一行行处理不占内存\n"
-            "Path(\"lines.txt\").write_text(\"第一行\\n第二行\\n\", encoding=\"utf-8\")\n"
-            "for line in Path(\"lines.txt\").read_text(encoding=\"utf-8\").splitlines():\n"
-            "    print(line)"
+            "# 读：直接 for 循环遍历文件对象 = 按行读，适合大文件（不会一次全读进内存）\n"
+            "f = io.StringIO(\"第一行\\n第二行\\n\")\n"
+            "for line in f:\n"
+            "    print(line.rstrip())\n"
+            "\n"
+            "# 真实项目写成 with open(\"lines.txt\", encoding=\"utf-8\") as f: for line in f: ..."
         ),
-        "example_output": "你是一个助手\nTrue\n第一行\n第二行",
+        "example_output": "你是一个助手\n第一行\n第二行",
         "pitfalls": [
             "**忘记 `encoding=\"utf-8\"`**：中文在 Windows 上会乱码或报 `UnicodeDecodeError`。",
             "**忘记 `with`**：文件句柄不释放，写入可能没落盘。",

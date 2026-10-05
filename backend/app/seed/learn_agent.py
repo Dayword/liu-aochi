@@ -307,16 +307,22 @@ LESSONS: list[dict] = [
             "全都走这个机制。"
         ),
         "example": (
-            "import os\n"
+            "# 真实项目里的写法是：\n"
+            "#   import os\n"
+            "#   api_key = os.environ.get(\"AI_API_KEY\")\n"
+            "# 但本演示沙箱禁止 import os，所以下面拿一个普通字典模拟「进程的环境变量表」，\n"
+            "# 字典在这里扮演的角色和 os.environ 完全一样。\n"
+            "env = {\"AI_BASE_URL\": \"https://api.example.com/v1\"}\n"
             "\n"
-            "# 读取，缺了就给出友好提示\n"
-            "api_key = os.environ.get(\"AI_API_KEY\")\n"
+            "# 读取，缺了就给出友好提示（.get 取不到返回 None，不会报错）\n"
+            "api_key = env.get(\"AI_API_KEY\")\n"
             "if not api_key:\n"
             "    print(\"⚠️ 没有配置 AI_API_KEY，将进入离线演示模式\")\n"
             "else:\n"
             "    print(\"已读取到密钥，长度\", len(api_key))\n"
             "\n"
-            "base_url = os.environ.get(\"AI_BASE_URL\", \"https://api.example.com/v1\")\n"
+            "# .get 的第二个参数是默认值：取不到就用它\n"
+            "base_url = env.get(\"AI_BASE_URL\", \"https://api.example.com/v1\")\n"
             "print(\"接口地址:\", base_url)"
         ),
         "example_output": "⚠️ 没有配置 AI_API_KEY，将进入离线演示模式\n接口地址: https://api.example.com/v1",
@@ -408,8 +414,10 @@ LESSONS: list[dict] = [
         ),
         "example": (
             "import logging\n"
+            "import sys\n"
             "\n"
-            "logging.basicConfig(level=logging.INFO,\n"
+            "# logging 默认写到 stderr；这里显式指到 stdout，方便对照运行结果\n"
+            "logging.basicConfig(level=logging.INFO, stream=sys.stdout,\n"
             "                    format=\"%(levelname)s: %(message)s\")\n"
             "log = logging.getLogger(\"agent\")\n"
             "\n"
@@ -520,7 +528,7 @@ LESSONS: list[dict] = [
             "print(total_len([m, Message(\"assistant\", \"在的\")]))"
         ),
         "example_output": (
-            "Message(role='user', content='你好', extra={})\nuser\n5"
+            "Message(role='user', content='你好', extra={})\nuser\n4"
         ),
         "pitfalls": [
             "**以为注解会强制类型**：Python 运行时不管，传错类型照样跑；要强制校验用 Pydantic。",
@@ -720,21 +728,32 @@ except TypeError as e:
         ),
         "example": (
             "import asyncio\n"
-            "import time\n"
+            "\n"
+            "# 用「峰值并发数」来证明并发：同一时刻有 3 个任务在等，而不是一个一个来\n"
+            "running = 0\n"
+            "peak = 0\n"
             "\n"
             "async def fetch(name):\n"
-            "    await asyncio.sleep(0.2)     # 模拟网络等待\n"
+            "    global running, peak\n"
+            "    running += 1\n"
+            "    peak = max(peak, running)\n"
+            "    await asyncio.sleep(0.05)     # 模拟网络等待；等的时候会把控制权交出去\n"
+            "    running -= 1\n"
             "    return name\n"
             "\n"
             "async def main():\n"
-            "    start = time.time()\n"
             "    result = await asyncio.gather(fetch(\"a\"), fetch(\"b\"), fetch(\"c\"))\n"
             "    print(result)\n"
-            "    print(f\"耗时 {time.time() - start:.2f}s\")   # 约 0.1s 而不是 0.3s\n"
+            "    print(\"同一时刻最多有\", peak, \"个任务在执行\")\n"
             "\n"
-            "asyncio.run(main())"
+            "asyncio.run(main())\n"
+            "\n"
+            "# 三个任务都在 sleep，所以总耗时 ≈ 0.05s（而不是 0.05 × 3）；\n"
+            "# 想看实测耗时加 time.time() 即可，但那样输出会随机器快慢浮动。"
         ),
-        "example_output": "['a', 'b', 'c']\n耗时 0.10s",
+        "example_output": (
+            "['a', 'b', 'c']\n同一时刻最多有 3 个任务在执行"
+        ),
         "pitfalls": [
             "**忘了 `await`**：协程不会执行，只拿到一个对象，运行时报 `coroutine was never awaited`。",
             "**在 async 里用同步阻塞函数**：`time.sleep()` / `requests.get()` 会卡住整个事件循环，要用 `asyncio.sleep()` / `httpx.AsyncClient`。",
@@ -902,25 +921,28 @@ except TypeError as e:
         "example": (
             "import json\n"
             "\n"
-            "# 模拟一个模型返回\n"
-            'response = {\n'
-            '    "choices": [{"message": {"role": "assistant", "content": "RAG 是检索增强生成"}}],\n'
-            '    "usage": {"prompt_tokens": 30, "completion_tokens": 12},\n'
+            "# 模拟一个接口返回（真实项目里是 httpx 发出去之后拿到的 JSON）\n"
+            "mock = {\n"
+            "    \"choices\": [{\"message\": {\"role\": \"assistant\", \"content\": \"你好呀\"}}],\n"
+            "    \"usage\": {\"prompt_tokens\": 10, \"completion_tokens\": 3},\n"
             "}\n"
             "\n"
-            "reply = response[\"choices\"][0][\"message\"][\"content\"]\n"
-            "print(reply)\n"
-            "print(response[\"usage\"][\"completion_tokens\"])\n"
+            "# 回复文本藏在 choices[0] -> message -> content 这条路径里\n"
+            "text = mock[\"choices\"][0][\"message\"][\"content\"]\n"
+            "print(text)\n"
+            "print(mock[\"usage\"][\"completion_tokens\"])\n"
             "\n"
-            "messages = [\n"
+            "# 请求体：system 定角色，user 放本轮问题\n"
+            "payload = [\n"
             "    {\"role\": \"system\", \"content\": \"你是一个严谨的助手\"},\n"
             "    {\"role\": \"user\", \"content\": \"什么是 RAG\"},\n"
             "]\n"
-            "print(json.dumps(messages, ensure_ascii=False))"
+            "print(json.dumps(payload, ensure_ascii=False))"
         ),
         "example_output": (
-            "RAG 是检索增强生成\n12\n"
-            '[{"role": "system", "content": "你是一个严谨的助手"}, {"role": "user", "content": "什么是 RAG"}]'
+            "你好呀\n3\n"
+            "[{\"role\": \"system\", \"content\": \"你是一个严谨的助手\"}, "
+            "{\"role\": \"user\", \"content\": \"什么是 RAG\"}]"
         ),
         "pitfalls": [
             "**把 messages 写成一个大字符串**：必须是「消息对象的列表」，不是拼好的文本。",
@@ -1121,31 +1143,29 @@ except TypeError as e:
         "example": (
             "import json\n"
             "\n"
-            "def parse_json(text):\n"
-            "    if not text:\n"
-            "        return None\n"
-            "    t = text.strip()\n"
-            "    if t.startswith(\"```\"):\n"
-            "        t = t.strip(\"`\")\n"
-            "        if t.startswith(\"json\"):\n"
-            "            t = t[4:].strip()\n"
-            "    try:\n"
-            "        return json.loads(t)\n"
-            "    except Exception:\n"
-            "        pass\n"
-            "    start, end = t.find(\"{\"), t.rfind(\"}\")\n"
-            "    if 0 <= start < end:\n"
-            "        try:\n"
-            "            return json.loads(t[start:end + 1])\n"
-            "        except Exception:\n"
-            "            return None\n"
-            "    return None\n"
+            "raw = '```json\\n{\"a\": 1}\\n```'\n"
             "\n"
-            'print(parse_json(\'```json\\n{"a": 1}\\n```\'))\n'
-            'print(parse_json(\'好的：{"a": 2}——以上\'))\n'
-            'print(parse_json("完全不是 JSON"))'
+            "# 模型很爱把 JSON 包在代码块围栏里，先剥掉它\n"
+            "def strip_fence(text):\n"
+            "    t = text.strip().strip(\"`\")        # 去掉前后的 ```\n"
+            "    if t.startswith(\"json\"):\n"
+            "        t = t[4:]                      # 围栏后面常带一个 json 标记\n"
+            "    return t.strip()\n"
+            "\n"
+            "print(strip_fence(raw))\n"
+            "print(json.loads(strip_fence(raw)))\n"
+            "\n"
+            "# 有时 JSON 前后还夹着解释文字：取第一个 { 到最后一个 }\n"
+            "mixed = '好的：{\"a\": 2}——以上'\n"
+            "print(mixed[mixed.find(\"{\"):mixed.rfind(\"}\") + 1])\n"
+            "\n"
+            "# 实在解析不出来时 json.loads 会抛异常，记得接住\n"
+            "try:\n"
+            "    json.loads(\"完全不是 JSON\")\n"
+            "except json.JSONDecodeError as e:\n"
+            "    print(\"解析失败：\", type(e).__name__)"
         ),
-        "example_output": "{'a': 1}\n{'a': 2}\nNone",
+        "example_output": "{\"a\": 1}\n{'a': 1}\n{\"a\": 2}\n解析失败： JSONDecodeError",
         "pitfalls": [
             "**直接 `json.loads(model_output)`**：一旦带围栏或前缀就崩，必须兜底。",
             "**只 strip 反引号不够**：还要处理紧跟的 `json` 字样和换行。",
@@ -1227,27 +1247,22 @@ except TypeError as e:
             "如果直接抛异常，整个循环就断了。"
         ),
         "example": (
-            "def get_weather(city):\n"
-            '    return f"{city}: 晴 25 度"\n'
+            "# 工具就是普通函数：函数名 + 参数就是它的「接口」\n"
+            "def convert(amount, rate):\n"
+            "    return round(amount * rate, 2)\n"
             "\n"
-            "def search(query):\n"
-            '    return f"找到 1 条关于 {query} 的结果"\n'
+            "def word_count(text):\n"
+            "    return len(text.split())\n"
             "\n"
-            "TOOLS = {\"get_weather\": get_weather, \"search\": search}\n"
+            "# 模型不会真的去执行代码，它只会「告诉你」想调用哪个工具、参数是什么\n"
+            "tool_call = {\"name\": \"convert\", \"arguments\": {\"amount\": 100, \"rate\": 7.2}}\n"
+            "print(\"模型想调用：\", tool_call[\"name\"], tool_call[\"arguments\"])\n"
             "\n"
-            "def call_tool(name, args):\n"
-            "    fn = TOOLS.get(name)\n"
-            "    if fn is None:\n"
-            '        return f"未知工具: {name}"\n'
-            "    return fn(**args)\n"
-            "\n"
-            "# 模拟模型返回的 tool_call\n"
-            'tool_call = {"name": "get_weather", "arguments": {"city": "北京"}}\n'
-            "print(call_tool(tool_call[\"name\"], tool_call[\"arguments\"]))\n"
-            'print(call_tool("search", {"query": "RAG"}))\n'
-            'print(call_tool("not_exist", {}))'
+            "# 拿到参数后，用 ** 把字典按名字喂给函数\n"
+            "print(convert(**tool_call[\"arguments\"]))\n"
+            "print(word_count(\"hello world\"))"
         ),
-        "example_output": "北京: 晴 25 度\n找到 1 条关于 RAG 的结果\n未知工具: not_exist",
+        "example_output": "模型想调用： convert {'amount': 100, 'rate': 7.2}\n720.0\n2",
         "pitfalls": [
             "**以为模型会自己执行工具**：它只返回调用意图，执行必须你来写。",
             "**工具名对不上**：定义里叫 `get_weather`，实现里写成 `getWeather`，就永远调不到。",
@@ -1602,9 +1617,10 @@ except TypeError as e:
             "query = [1, 0]\n"
             "docs = {\"a\": [0, 1], \"b\": [0.9, 0.1], \"c\": [0, 0.5]}\n"
             "ranked = sorted(docs, key=lambda k: cosine(query, docs[k]), reverse=True)\n"
-            "print(ranked)                    # 最相关的排前面"
+            "print(ranked)                    # 最相关的排前面；b 最高分，a 和 c 同分（0.0）\n"
+            "# 同分时谁在前？sorted 是稳定的：分数一样就保持原顺序，所以 a 排在 c 前面"
         ),
-        "example_output": "1.0\n0.0\n1.0\n['b', 'c', 'a']",
+        "example_output": "1.0\n0.0\n1.0\n['b', 'a', 'c']",
         "pitfalls": [
             "**忘了除以长度**：只算点积的话，长文档分数天然更高，排序就不公平了。",
             "**除零**：零向量（比如空文本转出来的）会导致除零错误，要先判断。",
@@ -1694,22 +1710,28 @@ except TypeError as e:
             "如果一刀切下去把 user 和 assistant 拆开（只留了问题没留回答），模型会看不懂。"
         ),
         "example": (
-            "def build_history(history, new_question, keep_rounds=2):\n"
-            "    # 每条历史消息算半轮，一轮 = user + assistant\n"
-            "    keep = keep_rounds * 2\n"
-            "    recent = history[-keep:] if keep else []\n"
-            "    return recent + [{\"role\": \"user\", \"content\": new_question}]\n"
-            "\n"
-            "history = [\n"
+            "msgs = [\n"
             "    {\"role\": \"user\", \"content\": \"第1轮问题\"},\n"
             "    {\"role\": \"assistant\", \"content\": \"第1轮回答\"},\n"
             "    {\"role\": \"user\", \"content\": \"第2轮问题\"},\n"
             "    {\"role\": \"assistant\", \"content\": \"第2轮回答\"},\n"
             "]\n"
-            "print(len(build_history(history, \"新问题\", 1)))   # 2 条历史 + 1 条新问题\n"
-            "print(build_history(history, \"新问题\", 1)[-1])"
+            "\n"
+            "# 一轮 = user + assistant 两条，所以「最近 1 轮」= 最后 2 条\n"
+            "print([m[\"content\"] for m in msgs[-2:]])\n"
+            "\n"
+            "# 切片越界不会报错：只有 4 条却想要最后 8 条，就把 4 条全给你\n"
+            "print([m[\"content\"] for m in msgs[-8:]])\n"
+            "\n"
+            "# 把新问题接在末尾，一个「带多轮上下文」的请求就拼好了\n"
+            "new = msgs[-2:] + [{\"role\": \"user\", \"content\": \"新问题\"}]\n"
+            "print(len(new), new[-1][\"content\"])"
         ),
-        "example_output": "3\n{'role': 'user', 'content': '新问题'}",
+        "example_output": (
+            "['第2轮问题', '第2轮回答']\n"
+            "['第1轮问题', '第1轮回答', '第2轮问题', '第2轮回答']\n"
+            "3 新问题"
+        ),
         "pitfalls": [
             "**把 system 消息一起裁掉**：行为约束丢失，模型开始不守格式。",
             "**按条裁剪拆散了轮次**：只留了 user 没留 assistant，模型看不懂上下文。",

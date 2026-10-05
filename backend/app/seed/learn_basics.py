@@ -357,11 +357,11 @@ LESSONS: list[dict] = [
             "tokens = 128\n"
             'print(f"模型 {model} 生成了 {tokens} 个 token")   # f-string\n'
             "\n"
-            "print(len(s), s[2:7])       # 长度、切片"
+            "print(len(s), s[2:7])       # 长度把首尾空格也算进去了；切片 [2:7] 取到 Hello"
         ),
         "example_output": (
             "Hello AI Agent\n['Hello', 'AI', 'Agent']\na-b\n"
-            "模型 glm-5.3 生成了 128 个 token\n16 Hello"
+            "模型 glm-5.3 生成了 128 个 token\n18 Hello"
         ),
         "pitfalls": [
             "**字符串不可变**：`s[0] = \"x\"` 会报 TypeError，要改只能重新拼一个新字符串。",
@@ -767,15 +767,15 @@ LESSONS: list[dict] = [
             "model_cfg = (\"glm-5.3\", 4096)     # 不可改的配置\n"
             "\n"
             "tags = [\"rag\", \"agent\", \"rag\", \"llm\"]\n"
-            "unique = set(tags)\n"
-            "print(unique)                 # 去重，顺序不保证\n"
-            "print(len(unique))\n"
+            "uniq = set(tags)\n"
+            "print(len(uniq))              # 3：重复的 rag 被去掉\n"
+            "print(sorted(uniq))           # 集合本身没有顺序，想看内容就排序后再看\n"
             "\n"
             "a = {1, 2, 3}\n"
             "b = {2, 3, 4}\n"
             "print(a & b, a | b, a - b)     # 交、并、差"
         ),
-        "example_output": "3 2\n{'rag', 'agent', 'llm'}\n3\n{2, 3} {1, 2, 3, 4} {1}",
+        "example_output": "3 2\n3\n['agent', 'llm', 'rag']\n{2, 3} {1, 2, 3, 4} {1}",
         "pitfalls": [
             "**元组不可改**：`point[0] = 9` 会报 `TypeError`。需要能改就用列表。",
             "**单元素元组要加逗号**：`(5)` 是数字 5，`(5,)` 才是元组。这个坑很隐蔽。",
@@ -962,6 +962,8 @@ LESSONS: list[dict] = [
             "print(add(3, 5))      # 8\n"
             "total = add(1, 2)     # 返回值可以存起来\n"
             "print(total * 10)     # 30\n"
+            "\n"
+            'print(greet("小明"))   # greet 里先打印「你好，小明」；它没 return，外面又打印 None\n'
             "\n"
             'def chat(prompt, temperature=0.7):   # 默认参数\n'
             '    return f"{prompt} @ {temperature}"\n'

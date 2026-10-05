@@ -11,6 +11,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "code-adventurer-dev-secret-change-me"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
+    # 直通登录（前端已无登录页）使用的主账号。
+    # 页面启动时会静默以这个账号进入，所以它决定了「看到的是谁的进度」。
+    # 换身份就改这里，或在 .env 里覆盖 AUTO_LOGIN_USERNAME（.env 不入库）。
+    # ⚠️ 改错名字不会报错，只会新建一个空白账号 —— 看起来就像「进度全没了」。
+    AUTO_LOGIN_USERNAME: str = "如梦令"
+
     # AI（留空 = 离线演示模式）
     AI_BASE_URL: str = ""
     AI_API_KEY: str = ""

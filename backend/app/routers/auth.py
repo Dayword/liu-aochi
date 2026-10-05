@@ -1,9 +1,10 @@
-"""认证路由：注册、登录、访客直通、当前用户。"""
+"""认证路由：注册、登录、直通登录、当前用户。"""
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import get_db
 from ..models import Character, User
 from ..schemas import LoginIn, RegisterIn, TokenOut
@@ -11,9 +12,6 @@ from ..security import create_token, get_current_user, hash_password, verify_pas
 from ..services import growth
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-# 访客直通账号：前端已移除登录页，启动时用它静默换 Token。
-GUEST_USERNAME = "guest"
 
 
 @router.post("/register", response_model=TokenOut)
@@ -38,16 +36,26 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 
 @router.post("/guest", response_model=TokenOut)
 def guest(db: Session = Depends(get_db)):
-    """访客直通：页面无需登录，自动复用/创建访客账号并签发 Token。"""
-    user = db.query(User).filter(User.username == GUEST_USERNAME).first()
+    """直通登录：页面无需登录，直接以「主账号」身份进入。
+
+    主账号由 `settings.AUTO_LOGIN_USERNAME` 指定。这里**只补缺、绝不覆盖**：
+    账号已存在就原样使用（进度、成就、记录全都在），只有确实不存在时才新建。
+
+    ⚠️ 主账号名写错时，这里会静默新建一个空白账号，学生看到的就是
+    「我上次解锁的课全没了」—— 所以账号不存在时一定要打日志。
+    """
+    username = settings.AUTO_LOGIN_USERNAME
+    user = db.query(User).filter(User.username == username).first()
     if user is None:
-        user = User(username=GUEST_USERNAME, nickname="冒险者",
+        print(f"[auth] ⚠️ 主账号 {username!r} 不存在，已新建空白账号。"
+              f"若你是在找回旧进度，请检查 .env / config.py 里的 AUTO_LOGIN_USERNAME")
+        user = User(username=username, nickname=username,
                     password_hash=hash_password(secrets.token_hex(16)))
         db.add(user)
         db.commit()
         db.refresh(user)
     if user.character is None:
-        # 默认角色直接置为「已完成新手引导」，跳过引导页直接进首页。
+        # 只注册过、没走完引导的账号：补一个默认角色，直接进首页。
         char = Character(user_id=user.id, name="代码冒险者", identity="在校学生",
                          class_key="backend", class_name=growth.class_info("backend")["name"],
                          level=1, exp=0, coins=100, hp=3, max_hp=3, onboarding_done=True)
