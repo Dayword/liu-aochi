@@ -10,13 +10,15 @@
 两种都写，是为了不让学生产生「我学的每个知识点项目里都用了」的错觉。
 """
 
+from .learn_project_be_mm import REFS as _BE_MM
 from .learn_project_cs import REFS as _CS
 from .learn_project_db import REFS as _DB
 from .learn_project_eng import REFS as _ENG
 from .learn_project_net import REFS as _NET
 from .learn_project_py import REFS as _PY
+from .learn_project_rag import REFS as _RAG
 
-REFS: dict[str, dict] = {**_PY, **_ENG, **_DB, **_CS, **_NET}
+REFS: dict[str, dict] = {**_PY, **_ENG, **_DB, **_CS, **_NET, **_RAG, **_BE_MM}
 
 
 def attach(curriculum: list[dict]) -> dict:

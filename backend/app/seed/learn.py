@@ -10,6 +10,14 @@
 - 操作系统          → learn_os
 - 数据分析与处理    → learn_data
 - Transformer       → learn_tf
+- RAG 检索工程      → learn_rag / learn_rag2
+- 后端服务工程      → learn_be / learn_be2
+- 多模态与部署      → learn_mm
+- AI 工程质量       → learn_ai_ground
+
+后四个科目是「按鸭先知项目反向补的缺口」：凡是项目里真实用了、但原课程
+一个字没提的技术点（分块/BM25/重排/Milvus/JWT/FastAPI/SSE/Docker/多模态/
+防幻觉…），都单独成课，`definition` 里直接标了项目文件与函数名。
 
 每个知识点自带 `subject`（科目）与 `stage`（科目内的分组）。
 `order_no` 是**科目内**序号，从 1 开始 —— 因为解锁是按科目独立走的，
@@ -22,16 +30,22 @@
 from .learn_advanced import LESSONS as ADVANCED
 from .learn_agent import LESSONS as AGENT
 from .learn_ai_adv import LESSONS as AI_ADV
+from .learn_ai_ground import LESSONS as AI_GROUND
 from .learn_basics import LESSONS as BASICS
+from .learn_be import LESSONS as BE
+from .learn_be2 import LESSONS as BE2
 from .learn_data import LESSONS as DATA
 from .learn_db import LESSONS as DB
 from .learn_ds import LESSONS as DS
 from .learn_eng_adv import LESSONS as ENG_ADV
+from .learn_mm import LESSONS as MM
 from .learn_net import LESSONS as NET
 from .learn_os import LESSONS as OS
 from .learn_py_core import LESSONS as PY_CORE
 from .learn_py_extra import LESSONS as PY_EXTRA
 from .learn_py_oop import LESSONS as PY_OOP
+from .learn_rag import LESSONS as RAG
+from .learn_rag2 import LESSONS as RAG2
 from .learn_redis import LESSONS as REDIS
 from .learn_tf import LESSONS as TF
 
@@ -52,6 +66,9 @@ for _p in _PYTHON:
     _p.setdefault("runner", "python")
 
 # 科目顺序 = 前端 Tab 的顺序
+#
+# 后四个科目是 2026-10-25 按项目反向盘点后新增的（22 课），
+# 全部排在原有 8 个科目之后，不打乱任何老学生的 Tab 位置与解锁进度。
 TRACKS: list[tuple[str, list[dict]]] = [
     ("Python", _PYTHON),
     ("MySQL", DB),
@@ -61,6 +78,10 @@ TRACKS: list[tuple[str, list[dict]]] = [
     ("操作系统", OS),
     ("数据分析与处理", DATA),
     ("Transformer", TF),
+    ("RAG 检索工程", RAG + RAG2),
+    ("后端服务工程", BE + BE2),
+    ("多模态与部署", MM),
+    ("AI 工程质量", AI_GROUND),
 ]
 
 SUBJECTS: list[str] = [name for name, _ in TRACKS]

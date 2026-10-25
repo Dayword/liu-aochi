@@ -415,7 +415,7 @@ export default function Learn() {
       <div>
         <h1 className="text-2xl font-bold text-indigo-700">📘 引导式学习</h1>
         <p className="text-slate-500 text-sm mt-1">
-          八个科目独立解锁，互不阻塞。先看懂，再自己动手写 —— 写完点「运行判定」，
+          十二个科目独立解锁，互不阻塞。先看懂，再自己动手写 —— 写完点「运行判定」，
           通过就解锁同一科目的下一课。
         </p>
       </div>
