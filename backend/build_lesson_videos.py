@@ -1,4 +1,4 @@
-"""构建期脚本：把 113 节课编译成讲解视频脚本。
+"""构建期脚本：把当前全部课程（CURRICULUM）编译成讲解视频脚本。
 
     cd backend && python build_lesson_videos.py          # 生成
     cd backend && python build_lesson_videos.py --check  # 只看差异，不写文件
