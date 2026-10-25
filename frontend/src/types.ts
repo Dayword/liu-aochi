@@ -255,6 +255,31 @@ export interface LearnQuizItem {
   hint: string
 }
 
+/** 「项目实地」里的练习题：本地即时判对错，不写库、不影响课程进度 */
+export interface LearnProjectQuiz {
+  type: 'choice' | 'judge'
+  stem: string
+  options?: string[]
+  /** 选择题是正确选项下标；判断题 1=对 0=错 */
+  answer: number
+  explain: string
+}
+
+/**
+ * 一个知识点在「鸭先知 · 游乐园智能体」项目里的真实落点。
+ * used   = 项目里真的有这段实现，file/lines 指到具体代码；
+ * absent = 项目里没用这个知识点，snippet 放的是它的替代方案。
+ */
+export interface LearnProjectRef {
+  kind: 'used' | 'absent'
+  file: string
+  lines: string
+  snippet: string
+  where: string
+  why: string
+  quiz: LearnProjectQuiz[]
+}
+
 export interface LearnPointDetail extends LearnPointBrief {
   definition: string
   plain: string
@@ -271,6 +296,40 @@ export interface LearnPointDetail extends LearnPointBrief {
   quizzes: LearnQuizItem[]
   quiz_state: Record<string, { correct?: boolean; seen?: boolean }>
   next_code: string | null
+  /** 讲解视频分镜脚本；后端构建期生成，缺失时前端不显示视频入口 */
+  video?: LearnVideo | null
+  /** 「项目实地」：本课知识点在鸭先知 RAG 项目里的落点；缺失时整块不渲染 */
+  project?: LearnProjectRef | null
+}
+
+/** 一个分镜。kind 决定前端怎么画，其余字段按 kind 取用。 */
+export interface LearnVideoScene {
+  kind: 'title' | 'lines' | 'code' | 'commands' | 'pitfalls' | 'task'
+  dur: number
+  /** 配音稿：这一镜要念的话 */
+  say?: string
+  // title
+  eyebrow?: string
+  title?: string
+  sub?: string
+  // lines / pitfalls
+  heading?: string
+  items?: string[]
+  // code / commands
+  lang?: string
+  caption?: string
+  lines?: string[]
+  steps?: { line: number; vars: Record<string, string>; out: string }[]
+  output?: string
+  // task
+  text?: string
+  bullets?: string[]
+}
+
+export interface LearnVideo {
+  code: string
+  scenes: LearnVideoScene[]
+  duration_ms: number
 }
 
 export interface LearnCheckResult {

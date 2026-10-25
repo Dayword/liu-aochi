@@ -302,6 +302,12 @@ class LearnPointDetail(LearnPointBrief):
     quizzes: list[LearnQuizItem] = []
     quiz_state: dict = {}
     next_code: Optional[str] = None   # 课程里的下一个知识点（用于「已完成」时的跳转）
+    # 讲解视频的分镜脚本；由 build_lesson_videos.py 在构建期生成，
+    # 缺失（比如还没跑过构建脚本）时为 None，前端就不显示视频入口。
+    video: Optional[dict] = None
+    # 「项目实地」：这个知识点在鸭先知 RAG 项目里的真实落点。
+    # 结构见 app/seed/learn_project_base.py；kind=used/absent，缺数据时前端不显示。
+    project: Optional[dict] = None
 
 
 class LearnCheckIn(BaseModel):

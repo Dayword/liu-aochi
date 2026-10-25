@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..ai import client as ai
 from ..database import get_db
+from ..learn_video import load_videos
 from ..models import LearnProgress, User, now
 from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        LearnPointBrief, LearnPointDetail, LearnQuizItem,
@@ -22,6 +23,11 @@ from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
 from ..services import sql_runner
 from ..services.code_runner import run_python
+
+# 讲解视频脚本是构建期产物，启动时读一次常驻内存（394KB，解析几毫秒）。
+# ⚠️ 重新跑 build_lesson_videos.py 之后要重启后端才生效 —— 和改 seed 一样，
+#    reload 不会因为一个 json 变化就重载。
+VIDEOS: dict = load_videos()
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -296,6 +302,8 @@ def point_detail(code: str, db: Session = Depends(get_db),
         quizzes=quizzes,
         quiz_state=(prog.quiz_json or {}) if prog else {},
         next_code=_next_unlocked(db, user, point["code"]),
+        video=VIDEOS.get(point["code"]),
+        project=point.get("project"),
     )
 
 

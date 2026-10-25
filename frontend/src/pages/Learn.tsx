@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { App, Button, Input, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import { api } from '../api/client'
+import LessonVideo from '../components/LessonVideo'
+import ProjectField from '../components/ProjectField'
 import type {
   LearnCheckResult,
   LearnPointBrief,
@@ -513,6 +515,11 @@ export default function Learn() {
             </div>
             <p className="text-slate-500 text-xs mt-1">{detail.summary}</p>
 
+            {/* 讲解视频：分镜脚本由后端构建期生成，缺脚本时组件自己返回 null */}
+            {detail.video && detail.video.scenes.length > 0 && (
+              <LessonVideo video={detail.video} code={detail.code} />
+            )}
+
             <Section icon="📖" title="定义">
               <Md>{detail.definition}</Md>
             </Section>
@@ -532,6 +539,12 @@ export default function Learn() {
                 </pre>
               </div>
             </Section>
+
+            {detail.project && (
+              <Section icon="🏗" title="项目实地（鸭先知 RAG）">
+                <ProjectField data={detail.project} />
+              </Section>
+            )}
 
             <Section icon="⚠️" title="易错点">
               <ul className="list-disc pl-5 space-y-1.5">

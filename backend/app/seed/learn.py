@@ -73,6 +73,12 @@ BY_SUBJECT: dict[str, list[dict]] = {
 
 CURRICULUM: list[dict] = [p for name in SUBJECTS for p in BY_SUBJECT[name]]
 
+# 「项目实地」：给每门课挂上它在鸭先知 RAG 项目里的真实落点（文件 + 行号 + 代码）。
+# 必须在这里挂：BY_SUBJECT 里的 dict 与 CURRICULUM 是同一批对象，挂一次两边都生效。
+from .learn_project import attach as _attach_project  # noqa: E402
+
+PROJECT_COVERAGE: dict = _attach_project(CURRICULUM)
+
 BY_CODE: dict[str, dict] = {p["code"]: p for p in CURRICULUM}
 
 # 科目 → 科目内的分组顺序（前端分组展示用）
