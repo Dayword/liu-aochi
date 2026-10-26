@@ -7,6 +7,11 @@ export interface MeInfo {
   id: number
   username: string
   nickname: string
+  /** 11 位学号（老账号可能为空字符串） */
+  student_id: string
+  real_name: string
+  grade: string
+  class_code: string
   onboarding_done: boolean
 }
 
@@ -35,9 +40,6 @@ const DEMO_CHARACTER: Character = {
   level: 1,
   exp: 0,
   exp_to_next: 100,
-  coins: 100,
-  hp: 3,
-  max_hp: 3,
   title: '实习生',
   weekly_exp: 0,
   total_exp: 0,
@@ -88,7 +90,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const enterOfflineDemo = () => {
     setOffline(true)
-    setUser({ id: 0, username: 'demo', nickname: '冒险者', onboarding_done: true })
+    setUser({
+      id: 0,
+      username: 'demo',
+      nickname: '冒险者',
+      student_id: '20230000000',
+      real_name: '演示同学',
+      grade: '2023',
+      class_code: '00000',
+      onboarding_done: true,
+    })
     setCharacter(DEMO_CHARACTER)
   }
 

@@ -130,7 +130,6 @@ async def answer(body: InterviewAnswerIn, db: Session = Depends(get_db),
             char.total_interviews += 1
             exp_gain = 60 if report["overall"] >= 75 else 30
             growth.add_exp(db, char, exp_gain)
-            growth.add_coins(db, char, 30)
             new_ach = growth.check_achievements(db, user)
             db.commit()
             growth.rebuild_leaderboard(db, user)

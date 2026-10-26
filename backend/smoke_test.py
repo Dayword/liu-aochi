@@ -4,7 +4,10 @@ import time
 import urllib.request
 
 BASE = os.environ.get('API_BASE', 'http://127.0.0.1:8001')
-USERNAME = 'tester' + str(int(time.time()))
+# 学号 11 位：前 4 位年级 + 中间 5 位班级 + 后 2 位座号
+STUDENT_ID = '2099' + f'{int(time.time()) % 100000:05d}' + '01'
+PASSWORD = 'Test1234!'
+REAL_NAME = '冒烟测试'
 
 
 def req(method, path, body=None, token=None):
@@ -43,12 +46,21 @@ def sse_chat(token, mentor, message):
 
 def main():
     s, d = req('POST', '/api/auth/register',
-               {'username': USERNAME, 'password': 'pass123456', 'nickname': '测试勇者'})
-    print('1 register:', s, d.get('access_token', '')[:20])
+               {'student_id': STUDENT_ID, 'real_name': REAL_NAME,
+                'password': PASSWORD, 'confirm_password': PASSWORD})
+    if s != 200:                       # 学号已存在（重复跑）就直接登录
+        s, d = req('POST', '/api/auth/login',
+                   {'student_id': STUDENT_ID, 'password': PASSWORD})
+    print('1 register/login:', s, 'student', STUDENT_ID, d.get('access_token', '')[:20])
     token = d['access_token']
+    s, me = req('GET', '/api/auth/me', token=token)
+    print('1b me:', s, me.get('student_id'), me.get('real_name'),
+          'grade', me.get('grade'), 'onboarded', me.get('onboarding_done'))
 
+    s, qs = req('GET', '/api/user/onboard-questions', token=token)
     s, d = req('POST', '/api/user/onboard',
-               {'name': '阿测', 'identity': '求职中', 'class_key': 'backend', 'answers': [0, 1, 0]}, token)
+               {'name': REAL_NAME, 'identity': '求职中', 'class_key': 'backend',
+                'answers': [-1] * len(qs)}, token)
     print('2 onboard:', s, d.get('class_name'), 'Lv', d.get('level'), 'title', d.get('title'))
 
     s, d = req('GET', '/api/levels/map', token=token)
@@ -57,7 +69,7 @@ def main():
 
     s, d = req('POST', '/api/quests/start', {'level_code': 'nvillage-1', 'mode': 'normal'}, token)
     run_id = d.get('run_id')
-    print('4 quest start:', s, 'run', run_id, 'total', d.get('total'), 'hp', d.get('hp'))
+    print('4 quest start:', s, 'run', run_id, 'total', d.get('total'))
 
     for i in range(3):
         s, q = req('GET', f'/api/quests/question/{run_id}', token=token)
@@ -67,7 +79,8 @@ def main():
         ans = 0 if q['type'] == 'choice' else 'x'
         s, a = req('POST', '/api/quests/answer',
                    {'run_id': run_id, 'question_id': q['question_id'], 'answer': ans}, token)
-        print(f"   Q{q['index']}: type={q['type']} correct={a.get('correct')} hp={a.get('hp_left')}")
+        print(f"   Q{q['index']}: type={q['type']} correct={a.get('correct')} "
+              f"exp={a.get('exp_gained')}")
 
     reply, quiz, summary = sse_chat(token, '老架构师', '什么是闭包？举例子')
     print('6 chat(stream):', reply[:40], '| 配套题目', len(quiz), '| 总结', summary[:20])
@@ -82,8 +95,9 @@ def main():
     s, d = req('POST', '/api/code/run', {'language': 'python', 'code': 'print(1+1)'}, token)
     print('9 code run:', s, d.get('stdout'))
 
-    s, d = req('GET', '/api/growth/leaderboard?board=total', token=token)
-    print('10 leaderboard:', s, len(d))
+    s, d = req('GET', '/api/growth/leaderboard', token=token)
+    print('10 leaderboard:', s, 'scope', d.get('scope'), 'items', len(d.get('items', [])),
+          'me', d.get('me', {}).get('class_rank'), '/', d.get('me', {}).get('grade_rank'))
 
     # ---- 引导式学习：多科目 + 科目内独立解锁 + SQL 沙箱 ----
     s, pts = req('GET', '/api/learn/points', token=token)

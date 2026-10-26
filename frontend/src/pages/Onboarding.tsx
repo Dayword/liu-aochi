@@ -7,15 +7,16 @@ import { useAuth } from '../store/auth'
 import type { ClassInfo, QuestQuestion } from '../types'
 
 export default function Onboarding() {
+  const { refreshMe, user } = useAuth()
   const [step, setStep] = useState(0)
-  const [name, setName] = useState('')
+  // 注册时已经填过姓名，这里直接带过来，学生不用再输一遍
+  const [name, setName] = useState(user?.real_name || '')
   const [identity, setIdentity] = useState('在校学生')
   const [classes, setClasses] = useState<ClassInfo[]>([])
   const [classKey, setClassKey] = useState('backend')
   const [testQuestions, setTestQuestions] = useState<QuestQuestion[]>([])
   const [answers, setAnswers] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const { refreshMe } = useAuth()
   const { message } = App.useApp()
   const navigate = useNavigate()
 

@@ -144,7 +144,7 @@ export default function LevelMap() {
                             </span>
                           ) : (
                             <span className="text-amber-600">
-                              +{lv.base_exp} EXP · +{lv.base_coins}🪙
+                              +{lv.base_exp} EXP
                             </span>
                           )}
                         </div>

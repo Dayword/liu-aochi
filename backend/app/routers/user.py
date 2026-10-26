@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import (Achievement, Character, DailyTask, Level, Question,
-                      User, UserAchievement, UserDailyTask, UserLevelProgress,
-                      WrongAnswer)
+from ..models import (Achievement, Character, DailyTask, LearnProgress, Level,
+                      Question, User, UserAchievement, UserDailyTask,
+                      UserLevelProgress, WrongAnswer)
 from ..schemas import (CharacterOut, ClassInfo, LevelOut, OnboardIn, ProfileOut,
                        RadarOut)
 from ..security import get_current_user
@@ -23,8 +23,8 @@ def _char_out(char: Character) -> CharacterOut:
     return CharacterOut(
         name=char.name, identity=char.identity, class_key=char.class_key,
         class_name=char.class_name, level=char.level, exp=char.exp,
-        exp_to_next=growth.exp_to_next(char.level), coins=char.coins,
-        hp=char.hp, max_hp=char.max_hp, title=growth.title_of(char.level),
+        exp_to_next=growth.exp_to_next(char.level),
+        title=growth.title_of(char.level),
         weekly_exp=char.weekly_exp, total_exp=char.total_exp,
         total_quests=char.total_quests,
         total_correct=char.total_correct, total_wrong=char.total_wrong,
@@ -79,10 +79,7 @@ def onboard(body: OnboardIn, db: Session = Depends(get_db),
         if q.answer.get("correct_index") == ans:
             score += 1
     char.level = 2 if score >= 2 else 1
-    char.max_hp = 3 + char.level // 20
-    char.hp = char.max_hp
     char.onboarding_done = True
-    char.coins = max(char.coins, 100)
     db.commit()
     growth.unlock_levels(db, user)
     return _char_out(char)
@@ -104,7 +101,7 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
                              "category": ach.category,
                              "unlocked": ua is not None,
                              "unlocked_at": ua.unlocked_at if ua else None,
-                             "exp_reward": ach.exp_reward, "coin_reward": ach.coin_reward})
+                             "exp_reward": ach.exp_reward})
     daily_tasks = []
     day = growth.today_str()
     for ut in db.query(UserDailyTask).filter(
@@ -114,8 +111,8 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
             daily_tasks.append({"code": task.code, "name": task.name,
                                 "description": task.description, "progress": ut.progress,
                                 "target": task.target_value, "done": ut.done,
-                                "claimed": ut.claimed, "exp_reward": task.exp_reward,
-                                "coin_reward": task.coin_reward})
+                                "claimed": ut.claimed,
+                                "exp_reward": task.exp_reward})
     wrong_count = db.query(WrongAnswer).filter(WrongAnswer.user_id == user.id).count()
     radar = growth.radar_data(db, user)
     recent = []
@@ -127,11 +124,21 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
         if lv:
             recent.append({"code": lv.code, "name": lv.name, "icon": lv.icon,
                            "best_score": prog.best_score})
+    # 学习进度：已完成课时 / 总课时
+    total_lessons = growth.learn_total()
+    done_lessons = db.query(LearnProgress).filter(
+        LearnProgress.user_id == user.id,
+        LearnProgress.status == "completed").count()
+    # 排名：班级 + 年级（没有学号的老账号返回空 dict）
+    lb = growth.leaderboard(db, scope="class", me=user, limit=1)
     return ProfileOut(character=_char_out(char), achievements=achievements,
                       daily_tasks=daily_tasks, wrong_count=wrong_count,
-                      radar=RadarOut(**radar), recent_levels=recent)
+                      radar=RadarOut(**radar), recent_levels=recent,
+                      student={"student_id": user.student_id,
+                               "real_name": user.real_name or user.nickname,
+                               "grade": user.grade, "class_code": user.class_code,
+                               "seat_no": user.seat_no},
+                      learn={"completed": done_lessons, "total": total_lessons,
+                             "pct": round(done_lessons * 100 / total_lessons, 1) if total_lessons else 0},
+                      rank=lb.get("me", {}))
 
-
-@router.post("/signin")
-def signin(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    return growth.sign_in(db, user)

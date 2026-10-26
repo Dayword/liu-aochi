@@ -124,7 +124,6 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
         if user and user.character:
             user.character.total_chats += 1
             growth.add_exp(db, user.character, 5)
-            growth.add_coins(db, user.character, 2)
             growth.report_daily_event(db, user, "chat")
             new_ach = growth.check_achievements(db, user)
             exp_gained = 5 + sum(a.exp_reward for a in new_ach)

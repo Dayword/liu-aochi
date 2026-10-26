@@ -51,13 +51,8 @@ def add_exp(db: Session, char: Character, amount: int) -> int:
     while char.exp >= exp_to_next(char.level):
         char.exp -= exp_to_next(char.level)
         char.level += 1
-        char.max_hp = 3 + char.level // 20  # 等级越高生命上限越高
         ups += 1
     return ups
-
-
-def add_coins(db: Session, char: Character, amount: int) -> None:
-    char.coins += max(0, int(amount))
 
 
 # ---------- 成就 ----------
@@ -97,7 +92,6 @@ def check_achievements(db: Session, user: User) -> list[Achievement]:
         if value >= ach.condition_value:
             db.add(UserAchievement(user_id=user.id, achievement_code=ach.code))
             add_exp(db, user.character, ach.exp_reward)
-            add_coins(db, user.character, ach.coin_reward)
             new.append(ach)
     if new:
         db.commit()
@@ -151,33 +145,11 @@ def claim_daily_task(db: Session, user: User, task_code: str) -> dict:
     task = db.query(DailyTask).filter(DailyTask.code == task_code).first()
     if task:
         add_exp(db, user.character, task.exp_reward)
-        add_coins(db, user.character, task.coin_reward)
     ut.claimed = True
     db.commit()
-    return {"ok": True, "msg": "领取成功", "exp": task.exp_reward if task else 0,
-            "coins": task.coin_reward if task else 0}
+    return {"ok": True, "msg": "领取成功", "exp": task.exp_reward if task else 0}
 
 
-def sign_in(db: Session, user: User) -> dict:
-    """每日签到：维护连续天数。"""
-    char = user.character
-    day = today_str()
-    if char.last_sign_date == day:
-        return {"ok": False, "msg": "今天已签到"}
-    import datetime as dt
-    yesterday = (date.today() - dt.timedelta(days=1)).isoformat()
-    char.streak_days = char.streak_days + 1 if char.last_sign_date == yesterday else 1
-    char.last_sign_date = day
-    add_exp(db, char, 15)
-    add_coins(db, char, 10)
-    report_daily_event(db, user, "signin")
-    new = check_achievements(db, user)
-    db.commit()
-    return {"ok": True, "msg": "签到成功", "exp": 15, "coins": 10,
-            "streak": char.streak_days, "new_achievements": [a.code for a in new]}
-
-
-# ---------- 关卡 ----------
 def unlock_levels(db: Session, user: User) -> None:
     """依据前置关系批量解锁关卡（首关默认解锁）。"""
     all_levels = db.query(Level).order_by(Level.order_no).all()
@@ -234,43 +206,111 @@ def rebuild_leaderboard(db: Session, user: User) -> None:
         pass
 
 
-def leaderboard(db: Session, board: str = "total", limit: int = 20,
-                class_key: str | None = None) -> list[dict]:
-    """排行榜：total=总榜 class=方向榜（限定某个职业方向）week=周榜。"""
-    q = db.query(Character).join(User).filter(Character.onboarding_done.is_(True))
-    if board == "class" and class_key:
-        q = q.filter(Character.class_key == class_key)
-    q = q.order_by(Character.total_exp.desc())
-    if board == "week":
-        # 周榜优先取 Redis，失败取 DB weekly_exp
-        try:
-            from ..config import settings
-            import redis
-            r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=1, decode_responses=True)
-            iso = date.today().isocalendar()
-            week_key = f"lb:week:{iso[0]}-{iso[1]}"
-            ids = r.zrevrange(week_key, 0, limit - 1)
-            if ids:
-                chars = {str(c.user_id): c for c in db.query(Character).filter(
-                    Character.user_id.in_([int(i) for i in ids])).all()}
-                rows = []
-                for i, uid in enumerate(ids):
-                    c = chars.get(uid)
-                    if c:
-                        rows.append(_entry(c, i + 1, weekly=c.weekly_exp))
-                if rows:
-                    return rows
-        except Exception:
-            pass
-        q = q.order_by(Character.weekly_exp.desc())
-    rows = q.limit(limit).all()
-    return [_entry(c, i + 1, weekly=c.weekly_exp) for i, c in enumerate(rows)]
+# ---------- 排行榜（学号体系） ----------
+def learn_total() -> int:
+    """课时总数（引导式学习 135 课，注册中心在 seed/learn.py）。"""
+    from ..seed.learn import BY_CODE
+    return len(BY_CODE)
 
 
-def _entry(c: Character, rank: int, weekly: int = 0) -> dict:
-    return {"rank": rank, "nickname": c.user.nickname or c.user.username,
-            "character_name": c.name, "class_name": c.class_name,
-            "level": c.level, "total_exp": c.total_exp, "weekly_exp": weekly}
+def completed_map(db: Session) -> dict[int, int]:
+    """每个用户已完成的课时数。"""
+    from ..models import LearnProgress
+    rows = (db.query(LearnProgress.user_id, func.count(LearnProgress.id))
+            .filter(LearnProgress.status == "completed")
+            .group_by(LearnProgress.user_id).all())
+    return {int(uid): int(n) for uid, n in rows}
+
+
+def _ranked_rows(db: Session, grade: str = "", class_code: str = "",
+                 done: dict[int, int] | None = None,
+                 total: int | None = None) -> list[dict]:
+    """取一组人并按「进度降序 → 学号后两位升序」排好名次。
+
+    只统计绑了 11 位学号的账号：老账号（用户名登录）不参与榜单。
+    """
+    done = completed_map(db) if done is None else done
+    total = learn_total() if total is None else total
+    q = (db.query(User, Character)
+         .outerjoin(Character, Character.user_id == User.id)
+         .filter(User.student_id != ""))
+    if grade:
+        q = q.filter(User.student_id.like(f"{grade}%"))
+    if class_code:
+        # 学号第 5~9 位 = 班级（MySQL SUBSTR 从 1 开始计数）
+        q = q.filter(func.substr(User.student_id, 5, 5) == class_code)
+
+    rows = []
+    for u, c in q.all():
+        rows.append({
+            "student_id": u.student_id,
+            "name": u.real_name or u.nickname or u.student_id,
+            "seat_no": u.seat_no,
+            "grade": u.grade,
+            "class_code": u.class_code,
+            "completed": done.get(u.id, 0),
+            "total": total,
+            "level": c.level if c else 1,
+        })
+    # 排序：进度优先；同分按学号后两位（默认座次）从小到大
+    rows.sort(key=lambda r: (-r["completed"], int(r["seat_no"] or 99), r["student_id"]))
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return rows
+
+
+def leaderboard(db: Session, scope: str = "class", grade: str = "",
+                class_code: str = "", me: User | None = None,
+                limit: int = 200) -> dict:
+    """排行榜：scope=class 看本班，scope=grade 看本年级。"""
+    total = learn_total()
+    done = completed_map(db)
+
+    me_grade = grade or (me.grade if me else "")
+    me_class = class_code or (me.class_code if me and scope == "class" else "")
+
+    items = _ranked_rows(db, grade=me_grade,
+                         class_code=me_class if scope == "class" else "",
+                         done=done, total=total)
+
+    me_info: dict = {}
+    if me and me.student_id:
+        cls = _ranked_rows(db, grade=me.grade, class_code=me.class_code,
+                           done=done, total=total)
+        grd = _ranked_rows(db, grade=me.grade, done=done, total=total)
+        cls_rank = next((r["rank"] for r in cls if r["student_id"] == me.student_id), 0)
+        grd_rank = next((r["rank"] for r in grd if r["student_id"] == me.student_id), 0)
+        me_info = {
+            "student_id": me.student_id,
+            "name": me.real_name or me.nickname,
+            "grade": me.grade, "class_code": me.class_code, "seat_no": me.seat_no,
+            "completed": done.get(me.id, 0), "total": total,
+            "class_rank": cls_rank, "class_size": len(cls),
+            "grade_rank": grd_rank, "grade_size": len(grd),
+        }
+
+    for r in items:
+        r["is_me"] = bool(me and r["student_id"] == me.student_id)
+
+    return {"scope": scope, "grade": me_grade,
+            "class_code": me_class if scope == "class" else "",
+            "total_lessons": total,
+            "items": items[:limit], "me": me_info,
+            "groups": leaderboard_groups(db)}
+
+
+def leaderboard_groups(db: Session) -> list[dict]:
+    """所有年级 → 班级 → 人数，供前端做筛选器。"""
+    out: dict[str, dict[str, int]] = {}
+    for (sid,) in db.query(User.student_id).filter(User.student_id != "").all():
+        if len(sid) < 11:
+            continue
+        g, c = sid[:4], sid[4:9]
+        out.setdefault(g, {})
+        out[g][c] = out[g].get(c, 0) + 1
+    return [{"grade": g,
+             "classes": [{"code": c, "count": n} for c, n in sorted(v.items())]}
+            for g, v in sorted(out.items(), reverse=True)]
 
 
 # ---------- 能力雷达 ----------

@@ -19,7 +19,6 @@ import {
   shuffleBoard,
   trySwap,
 } from '../game/match3'
-import { MAX_LIVES, formatCountdown, useLives } from '../game/lives'
 
 const GEMS = [
   { color: '#ef4444', emoji: '🍎' },
@@ -34,14 +33,13 @@ const BONUS_MOVES = 5
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const cellKey = (r: number, c: number) => `${r},${c}`
 
-type Phase = 'loading' | 'play' | 'quiz' | 'won' | 'failed' | 'nolife'
+type Phase = 'loading' | 'play' | 'quiz' | 'won' | 'failed'
 
 export default function Match3() {
   const { levelCode = '' } = useParams()
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { refreshCharacter } = useAuth()
-  const { lives, nextInMs, consume } = useLives()
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [config, setConfig] = useState<Match3Start | null>(null)
@@ -149,16 +147,11 @@ export default function Match3() {
       .then((cfg) => {
         if (!alive.current) return
         setConfig(cfg)
-        if (lives <= 0) {
-          setPhase('nolife')
-          return
-        }
         void startLevel(cfg)
       })
       .catch((e) => {
         if (alive.current) message.error((e as Error).message)
       })
-    // lives 只在首次进入时用于判断，后续变化不应重新拉关
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelCode])
 
@@ -285,8 +278,6 @@ export default function Match3() {
         setAnswerResult(null)
         setPicked(-1)
         setPhase('play')
-      } else {
-        consume() // 答错扣一颗生命
       }
     } catch (e) {
       if (alive.current) message.error((e as Error).message)
@@ -294,7 +285,6 @@ export default function Match3() {
   }
 
   const retryAfterWrong = () => {
-    if (lives <= 0) return
     if (config) void startLevel(config)
   }
 
@@ -303,25 +293,6 @@ export default function Match3() {
   if (phase === 'loading') {
     return (
       <div className="game-panel p-10 text-center text-slate-500">关卡加载中…</div>
-    )
-  }
-
-  if (phase === 'nolife') {
-    return (
-      <div className="game-panel p-10 text-center space-y-4">
-        <div className="text-5xl">💔</div>
-        <div className="text-lg text-slate-700">生命值用完了</div>
-        <p className="text-slate-500 text-sm">
-          每 1 分钟恢复 1 颗，下一颗还有{' '}
-          <span className="text-amber-600 font-mono">{formatCountdown(nextInMs)}</span>
-        </p>
-        <div className="flex gap-2 justify-center">
-          <Button onClick={() => navigate('/levels')}>返回地图</Button>
-          <Button type="primary" onClick={() => lives > 0 && config && startLevel(config)}>
-            刷新状态
-          </Button>
-        </div>
-      </div>
     )
   }
 
@@ -351,15 +322,6 @@ export default function Match3() {
             <div className="whitespace-nowrap text-xl font-bold text-amber-600">
               {score}
               <span className="text-slate-500 text-sm"> / {config?.target_score}</span>
-            </div>
-          </div>
-          <div className="min-w-0 text-center">
-            <div className="whitespace-nowrap text-[11px] text-slate-500">生命值</div>
-            <div className="text-sm leading-tight sm:text-lg">
-              {'❤️'.repeat(Math.min(lives, MAX_LIVES))}
-              <span className="text-slate-400">
-                {'🖤'.repeat(Math.max(0, MAX_LIVES - lives))}
-              </span>
             </div>
           </div>
         </div>
@@ -440,9 +402,8 @@ export default function Match3() {
               答对 <span className="text-emerald-600">奖励 {BONUS_MOVES} 步</span>
             </div>
             <div>
-              答错 <span className="text-rose-600">扣 1 颗生命值</span>
+              答错可以<span className="text-indigo-600">重新挑战本关</span>，不限次数
             </div>
-            <div>生命值上限 {MAX_LIVES} 颗，每 1 分钟恢复 1 颗</div>
           </div>
           <Button block onClick={() => navigate('/levels')}>
             返回地图
@@ -523,19 +484,10 @@ export default function Match3() {
                   </Button>
                 ) : (
                   <div className="space-y-2">
-                    {answerResult.correct ? null : lives > 0 ? (
-                      <>
-                        <div className="text-center text-xs text-rose-600">
-                          已扣 1 颗生命值，剩余 {lives} 颗
-                        </div>
-                        <Button block type="primary" onClick={retryAfterWrong}>
-                          重新挑战本关
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="text-center text-xs text-rose-600">
-                        生命值已耗尽，下一颗还需 {formatCountdown(nextInMs)}
-                      </div>
+                    {answerResult.correct ? null : (
+                      <Button block type="primary" onClick={retryAfterWrong}>
+                        重新挑战本关
+                      </Button>
                     )}
                     <Button block onClick={() => navigate('/levels')}>
                       返回地图
@@ -560,7 +512,6 @@ export default function Match3() {
             </p>
             <div className="flex justify-center gap-4 text-sm text-slate-700">
               <span>⚡ +{result.exp_gained} EXP</span>
-              <span>🪙 +{result.coins_gained}</span>
             </div>
             {result.unlocked_next && (
               <div className="text-xs text-indigo-600">🔓 已解锁新关卡</div>

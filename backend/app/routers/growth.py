@@ -26,7 +26,7 @@ def achievements(db: Session = Depends(get_db), user: User = Depends(get_current
                     "icon": ach.icon, "category": ach.category,
                     "unlocked": ach.code in unlocked,
                     "unlocked_at": ua.unlocked_at if ua else None,
-                    "exp_reward": ach.exp_reward, "coin_reward": ach.coin_reward})
+                    "exp_reward": ach.exp_reward})
     return out
 
 
@@ -45,7 +45,7 @@ def daily_tasks(db: Session = Depends(get_db), user: User = Depends(get_current_
             out.append({"code": task.code, "name": task.name, "description": task.description,
                         "progress": ut.progress, "target": task.target_value,
                         "done": ut.done, "claimed": ut.claimed,
-                        "exp_reward": task.exp_reward, "coin_reward": task.coin_reward})
+                        "exp_reward": task.exp_reward})
     return out
 
 
@@ -88,11 +88,25 @@ def resolve_wrong(wid: int, db: Session = Depends(get_db),
     return {"ok": True}
 
 
-@router.get("/leaderboard", response_model=list[LeaderboardEntry])
-def leaderboard(board: str = "total", limit: int = 20,
+@router.get("/leaderboard")
+def leaderboard(scope: str = "class", grade: str = "", class_code: str = "",
+                limit: int = 200,
                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    class_key = user.character.class_key if user.character else None
-    return growth.leaderboard(db, board, min(limit, 50), class_key=class_key)
+    """排行榜：按年级/班级分组，组内按课程进度排名（同分看学号后两位）。
+
+    scope=class 看指定班级；scope=grade 看整个年级。
+    grade/class_code 不传时默认取当前登录人自己的年级和班级。
+    """
+    if scope not in ("class", "grade"):
+        scope = "class"
+    return growth.leaderboard(db, scope=scope, grade=grade, class_code=class_code,
+                              me=user, limit=min(max(limit, 1), 500))
+
+
+@router.get("/leaderboard/groups")
+def leaderboard_groups(db: Session = Depends(get_db)):
+    """年级 → 班级清单（筛选器用）。"""
+    return growth.leaderboard_groups(db)
 
 
 @router.post("/share")

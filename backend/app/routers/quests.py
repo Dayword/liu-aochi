@@ -76,10 +76,4 @@ def settle(run_id: str, db: Session = Depends(get_db),
         raise HTTPException(400, str(e))
 
 
-@router.post("/revive")
-def revive(run_id: str, db: Session = Depends(get_db),
-           user: User = Depends(get_current_user)):
-    try:
-        return quest.revive(db, user, run_id)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+

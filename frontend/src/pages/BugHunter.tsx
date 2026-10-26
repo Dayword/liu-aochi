@@ -239,7 +239,7 @@ export default function BugHunter() {
                   </div>
                   <div className="text-sm text-slate-600 leading-relaxed">{result.explanation}</div>
                   <div className="text-xs text-slate-500 mt-2">
-                    ✨ +{result.exp_gained} EXP · 🪙 +{result.coins_gained}
+                    ✨ +{result.exp_gained} EXP
                   </div>
                   {result.new_achievements.map((a) => (
                     <div key={a.code} className="text-xs text-amber-600 mt-1">

@@ -399,9 +399,13 @@ export default function Learn() {
               key={s}
               onClick={() => pickSubject(s)}
               className={`px-2.5 py-1 rounded-full border text-[11px] whitespace-nowrap shrink-0 transition-all ${
-                active
-                  ? 'border-indigo-400 bg-indigo-50 text-indigo-800 font-medium'
-                  : 'border-slate-200 bg-white text-slate-600'
+                all.length > 0 && ok === all.length
+                  ? active
+                    ? 'border-emerald-400 bg-emerald-100 text-emerald-800 font-medium ring-1 ring-emerald-300'
+                    : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                  : active
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-800 font-medium'
+                    : 'border-slate-200 bg-white text-slate-600'
               }`}
             >
               {s}
@@ -594,10 +598,23 @@ export default function Learn() {
                   onClick={() => setOpenSubject(open ? null : s)}
                   className="w-full flex items-center gap-2 py-2.5 text-left"
                 >
-                  <span className={`text-sm flex-1 truncate ${s === subject ? 'text-indigo-700 font-medium' : 'text-slate-700'}`}>
+                  <span
+                    className={`text-sm flex-1 truncate ${
+                      all.length > 0 && ok === all.length
+                        ? 'text-emerald-700 font-medium'
+                        : s === subject
+                          ? 'text-indigo-700 font-medium'
+                          : 'text-slate-700'
+                    }`}
+                  >
+                    {all.length > 0 && ok === all.length ? '✅ ' : ''}
                     {s}
                   </span>
-                  <span className="text-[11px] text-slate-500 shrink-0">
+                  <span
+                    className={`text-[11px] shrink-0 ${
+                      all.length > 0 && ok === all.length ? 'text-emerald-600' : 'text-slate-500'
+                    }`}
+                  >
                     {ok}/{all.length}
                   </span>
                   <span className={`text-[10px] text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
@@ -613,14 +630,38 @@ export default function Learn() {
                       const sOpen = !!openStages[key]
                       const sOk = items.filter((p) => p.status === 'completed').length
                       return (
-                        <div key={stage} className="rounded-lg border border-slate-200 overflow-hidden">
+                        <div
+                          key={stage}
+                          className={`rounded-lg border overflow-hidden ${
+                            items.length > 0 && sOk === items.length
+                              ? 'border-emerald-300 bg-emerald-50/40'
+                              : 'border-slate-200'
+                          }`}
+                        >
                           {/* 第二层：阶段 */}
                           <button
                             onClick={() => setOpenStages((prev) => ({ ...prev, [key]: !sOpen }))}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 bg-slate-50 text-left"
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 text-left ${
+                              items.length > 0 && sOk === items.length ? 'bg-emerald-50' : 'bg-slate-50'
+                            }`}
                           >
-                            <span className="text-[11px] text-slate-600 flex-1 truncate">{stage}</span>
-                            <span className="text-[10px] text-slate-400 shrink-0">
+                            <span
+                              className={`text-[11px] flex-1 truncate ${
+                                items.length > 0 && sOk === items.length
+                                  ? 'text-emerald-700 font-medium'
+                                  : 'text-slate-600'
+                              }`}
+                            >
+                              {items.length > 0 && sOk === items.length ? '✅ ' : ''}
+                              {stage}
+                            </span>
+                            <span
+                              className={`text-[10px] shrink-0 ${
+                                items.length > 0 && sOk === items.length
+                                  ? 'text-emerald-600'
+                                  : 'text-slate-400'
+                              }`}
+                            >
                               {sOk}/{items.length}
                             </span>
                             <span className="text-[9px] text-slate-400 shrink-0">{sOpen ? '▲' : '▼'}</span>
@@ -641,11 +682,15 @@ export default function Learn() {
                                       setNavOpen(false)
                                     }}
                                     className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] text-left transition-colors ${
-                                      isCur
-                                        ? 'bg-indigo-100 text-indigo-800 font-medium'
-                                        : locked
-                                          ? 'text-slate-300 cursor-not-allowed'
-                                          : 'text-slate-600 active:bg-slate-100'
+                                      p.status === 'completed'
+                                        ? isCur
+                                          ? 'bg-emerald-100 text-emerald-800 font-medium ring-1 ring-emerald-300'
+                                          : 'bg-emerald-50 text-emerald-700'
+                                        : isCur
+                                          ? 'bg-indigo-100 text-indigo-800 font-medium'
+                                          : locked
+                                            ? 'text-slate-300 cursor-not-allowed'
+                                            : 'text-slate-600 active:bg-slate-100'
                                     }`}
                                   >
                                     <span className="shrink-0">

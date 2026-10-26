@@ -23,9 +23,13 @@ _register_limiter = SlidingWindowLimiter(10, 3600, "注册")
 @router.post("/register", response_model=TokenOut)
 def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
     enforce(_register_limiter, request)
-    if db.query(User).filter(User.username == body.username).first():
-        raise HTTPException(400, "用户名已存在")
-    user = User(username=body.username, nickname=body.nickname or body.username,
+    if db.query(User).filter(User.student_id == body.student_id).first():
+        raise HTTPException(400, "该学号已注册，请直接登录")
+    if db.query(User).filter(User.username == body.student_id).first():
+        raise HTTPException(400, "该学号已注册，请直接登录")
+    # 新账号：登录名直接用学号，昵称取姓名（排行榜展示用姓名）
+    user = User(username=body.student_id, student_id=body.student_id,
+                real_name=body.real_name, nickname=body.real_name,
                 password_hash=hash_password(body.password))
     db.add(user)
     db.commit()
@@ -36,9 +40,11 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenOut)
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     enforce(_login_limiter, request)
-    user = db.query(User).filter(User.username == body.username).first()
+    # 优先按学号查；查不到再按 username 查，兼容 2026-10-26 之前注册的老账号
+    user = (db.query(User).filter(User.student_id == body.student_id).first()
+            or db.query(User).filter(User.username == body.student_id).first())
     if not user or not verify_password(body.password, user.password_hash):
-        raise HTTPException(400, "用户名或密码错误")
+        raise HTTPException(400, "学号或密码错误")
     return TokenOut(access_token=create_token(user.id))
 
 
@@ -83,4 +89,6 @@ def guest(db: Session = Depends(get_db)):
 @router.get("/me")
 def me(user: User = Depends(get_current_user)):
     return {"id": user.id, "username": user.username, "nickname": user.nickname,
+            "student_id": user.student_id, "real_name": user.real_name or user.nickname,
+            "grade": user.grade, "class_code": user.class_code,
             "onboarding_done": user.character.onboarding_done if user.character else False}

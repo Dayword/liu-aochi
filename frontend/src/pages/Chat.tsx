@@ -182,7 +182,7 @@ export default function Chat() {
 
   return (
     // 手机上整页吃满可视高度，输入行才会真正贴在底部；桌面端恢复自然流式布局
-    <div className="flex flex-col gap-3 h-[calc(100dvh-120px)] md:h-auto">
+    <div className="flex flex-col gap-3 h-[calc(100dvh-136px)] md:h-auto">
       <div className="flex items-center gap-2 shrink-0">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-indigo-700 leading-tight">💬 AI 导师</h1>
@@ -381,12 +381,14 @@ export default function Chat() {
       )}
 
       {/*
-        输入区：快捷指令 + 输入框 + 发送，全部压在**一行**里。
-        手机上快捷指令横向可滑（右侧渐隐提示还有更多），不再单独占一整行把输入框挤下去。
+        输入区：分两行。
+        第一行 = 快捷指令（手机上横向可滑，右侧渐隐提示还有更多）；
+        第二行 = 输入框 + 发送，让输入框吃满剩余宽度。
+        2026-10-26 由「一行」改成两行：三样挤一行会把输入框压得太窄。
       */}
-      <div className="shrink-0 flex items-center gap-1.5 pb-1">
-        <div className="relative shrink-0 w-[40vw] max-w-[230px] md:w-auto md:max-w-none">
-          <div className="flex gap-1 overflow-x-auto no-scrollbar pr-6 md:pr-0">
+      <div className="shrink-0 space-y-1.5 pb-1">
+        <div className="relative">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar pr-6">
             {QUICK_COMMANDS.map((c) => (
               <button
                 key={c}
@@ -398,25 +400,27 @@ export default function Chat() {
               </button>
             ))}
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[#f6f7fb] via-[#f6f7fb]/85 to-transparent md:hidden" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[#f6f7fb] via-[#f6f7fb]/85 to-transparent" />
         </div>
 
-        <Input.TextArea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="向导师提问…"
-          autoSize={{ minRows: 1, maxRows: 3 }}
-          className="flex-1 min-w-0"
-          onPressEnter={(e) => {
-            if (!e.shiftKey) {
-              e.preventDefault()
-              send()
-            }
-          }}
-        />
-        <Button type="primary" loading={sending} onClick={() => send()} className="glow-btn shrink-0 px-3">
-          发送
-        </Button>
+        <div className="flex items-end gap-1.5">
+          <Input.TextArea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="向导师提问…"
+            autoSize={{ minRows: 1, maxRows: 3 }}
+            className="flex-1 min-w-0"
+            onPressEnter={(e) => {
+              if (!e.shiftKey) {
+                e.preventDefault()
+                send()
+              }
+            }}
+          />
+          <Button type="primary" loading={sending} onClick={() => send()} className="glow-btn shrink-0 px-3">
+            发送
+          </Button>
+        </div>
       </div>
     </div>
   )

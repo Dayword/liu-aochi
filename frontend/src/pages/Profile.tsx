@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { App, Button, Progress, Segmented, Tabs } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { App, Button, Empty, Progress, Skeleton } from 'antd'
+import { RightOutlined, StarOutlined, TrophyOutlined } from '@ant-design/icons'
 import * as echarts from 'echarts'
-import { motion } from 'framer-motion'
 import { api } from '../api/client'
-import type { Achievement, DailyTask, LeaderEntry, Profile, WrongItem } from '../types'
+import { useAuth } from '../store/auth'
+import type { Profile, WrongItem } from '../types'
 
 const DIFF_LABELS = ['L1', 'L2', 'L3', 'L4', 'L5']
 
+/** 能力雷达：维持原样式，尺寸压到 160px 以内，避免手机上占满一屏 */
 function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[] }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -15,9 +18,9 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
     chart.setOption({
       backgroundColor: 'transparent',
       radar: {
-        indicator: subjects.map((s, i) => ({ name: s, max: 100 })),
-        radius: '65%',
-        axisName: { color: '#64748b', fontSize: 11 },
+        indicator: subjects.map((s) => ({ name: s, max: 100 })),
+        radius: '70%',
+        axisName: { color: '#64748b', fontSize: 9 },
         splitLine: { lineStyle: { color: 'rgba(99,102,241,0.25)' } },
         splitArea: { areaStyle: { color: ['rgba(99,102,241,0.03)', 'rgba(99,102,241,0.08)'] } },
         axisLine: { lineStyle: { color: 'rgba(99,102,241,0.3)' } },
@@ -28,7 +31,6 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
           data: [
             {
               value: scores,
-              name: '能力值',
               areaStyle: { color: 'rgba(129,140,248,0.3)' },
               lineStyle: { color: '#818cf8', width: 2 },
               itemStyle: { color: '#a78bfa' },
@@ -44,28 +46,33 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
       chart.dispose()
     }
   }, [subjects, scores])
-  return <div ref={ref} className="h-48 md:h-56 w-full" />
+  return <div ref={ref} className="h-40 md:h-48 w-full" />
 }
 
+/** 「我的」页：个人信息 / 学习进度 / 排名 / 成就 / 收藏 / 错题 */
 export default function Profile() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
+  const { logout, user } = useAuth()
+  const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wrongBook, setWrongBook] = useState<WrongItem[]>([])
-  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
-  const [lbBoard, setLbBoard] = useState('total')
+  const [loading, setLoading] = useState(true)
+  const [showAllAch, setShowAllAch] = useState(false)
+  const [showAllWrong, setShowAllWrong] = useState(false)
 
   const load = async () => {
+    setLoading(true)
     try {
-      const [p, w, lb] = await Promise.all([
+      const [p, w] = await Promise.all([
         api.get<Profile>('/api/user/profile'),
         api.get<WrongItem[]>('/api/growth/wrong-book'),
-        api.get<LeaderEntry[]>('/api/growth/leaderboard?board=total&limit=20'),
       ])
       setProfile(p)
       setWrongBook(w)
-      setLeaderboard(lb)
     } catch (e) {
       message.error((e as Error).message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -74,258 +81,280 @@ export default function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const switchBoard = async (board: string) => {
-    setLbBoard(board)
-    try {
-      const lb = await api.get<LeaderEntry[]>(`/api/growth/leaderboard?board=${board}&limit=20`)
-      setLeaderboard(lb)
-    } catch (e) {
-      message.error((e as Error).message)
-    }
-  }
-
   const resolveWrong = async (id: number) => {
-    try {
-      await api.post(`/api/growth/wrong-book/${id}/resolve`)
-      setWrongBook((w) => w.map((x) => (x.id === id ? { ...x, resolved: true } : x)))
-      message.success('已标记为已掌握')
-    } catch (e) {
-      message.error((e as Error).message)
-    }
+    await api.post(`/api/growth/wrong-book/${id}/resolve`)
+    message.success('已标记为掌握')
+    load()
   }
 
+  const askLogout = () => {
+    modal.confirm({
+      title: '确认退出登录？',
+      content: '退出后需要重新用学号和密码登录，学习进度不会丢失。',
+      okText: '退出登录',
+      okButtonProps: { danger: true },
+      cancelText: '再想想',
+      onOk: () => {
+        logout()
+        navigate('/login', { replace: true })
+      },
+    })
+  }
+
+  if (loading) {
+    return (
+      <div className="game-panel p-4">
+        <Skeleton active paragraph={{ rows: 8 }} />
+      </div>
+    )
+  }
   if (!profile) {
-    return <div className="text-center py-20 text-slate-500">加载中…</div>
+    return <div className="game-panel p-6 text-center text-slate-500">加载失败，请刷新重试</div>
   }
 
-  const { character, achievements, daily_tasks, radar } = profile
-  const unlockedCount = achievements.filter((a) => a.unlocked).length
+  const { character, student, learn, rank, achievements, radar, wrong_count } = profile
+  const studentId = student?.student_id || user?.student_id || ''
+  const realName = student?.real_name || user?.real_name || character.name
   const expPct = Math.min(100, Math.round((character.exp / character.exp_to_next) * 100))
+  const unlocked = achievements.filter((a) => a.unlocked)
+  const achList = showAllAch ? achievements : achievements.slice(0, 8)
+  const wrongList = showAllWrong ? wrongBook : wrongBook.slice(0, 3)
 
   return (
     <div className="space-y-3">
-      <h1 className="text-xl font-bold text-indigo-700">📊 个人中心</h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 md:gap-3">
-        {/* 角色卡 */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="game-panel p-3">
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">{character.identity === '求职中' ? '💼' : '🎓'}</div>
-            <div>
-              <div className="text-xl font-bold text-indigo-800">{character.name}</div>
-              <div className="text-sm text-amber-600 mt-0.5">{character.class_name} · {character.title}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{character.identity} · 🔥 连续 {character.streak_days} 天</div>
+      {/* ===== 个人信息 ===== */}
+      <div className="game-panel p-3">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center text-xl shrink-0">
+            {realName.slice(0, 1)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-bold text-[15px] truncate">{realName}</span>
+              <span className="text-[11px] text-amber-600 shrink-0">
+                Lv.{character.level} {character.title}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 truncate">
+              {studentId ? `学号 ${studentId}` : '未绑定学号'}
+              {student?.grade && ` · ${student.grade} 级 · 班级 ${student.class_code}`}
+            </div>
+            <div className="text-[11px] text-slate-400 truncate">
+              {character.class_name} · {character.identity}
             </div>
           </div>
-          <div className="mt-4">
-            <div className="flex justify-between text-xs text-slate-500 mb-1">
-              <span>Lv.{character.level}</span>
-              <span>{character.exp}/{character.exp_to_next} EXP</span>
-            </div>
-            <Progress percent={expPct} strokeColor="#7c3aed" trailColor="#e2e8f0" showInfo={false} />
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-            {[
-              { v: character.coins, l: '代码币', c: 'text-amber-600' },
-              { v: character.hp + '/' + character.max_hp, l: '生命值', c: 'text-rose-600' },
-              { v: character.total_exp, l: '累计EXP', c: 'text-purple-600' },
-            ].map((x) => (
-              <div key={x.l} className="p-2 bg-slate-50 rounded-xl">
-                <div className={`font-bold ${x.c}`}>{x.v}</div>
-                <div className="text-[10px] text-slate-500">{x.l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-2 mt-2 text-center text-[11px] text-slate-500">
-            <div className="p-2 bg-slate-50 rounded-xl">闯关 {character.total_quests} 次</div>
-            <div className="p-2 bg-slate-50 rounded-xl">对话 {character.total_chats} 次</div>
-            <div className="p-2 bg-slate-50 rounded-xl">面试 {character.total_interviews} 场</div>
-            <div className="p-2 bg-slate-50 rounded-xl">抓 Bug {character.total_bugs} 次</div>
-          </div>
-        </motion.div>
-
-        {/* 能力雷达 */}
-        <div className="game-panel p-3">
-          <h3 className="font-semibold text-indigo-700 mb-2">🧠 能力雷达</h3>
-          <RadarChart subjects={radar.subjects} scores={radar.scores} />
-          <div className="text-center text-xs text-slate-500">按各学科答题正确率生成 · 多闯关提升</div>
         </div>
+        <Progress
+          className="mt-2"
+          percent={expPct}
+          size="small"
+          strokeColor={{ from: '#6366f1', to: '#a855f7' }}
+          trailColor="#e2e8f0"
+          format={() => (
+            <span className="text-[10px] text-slate-500">
+              {character.exp}/{character.exp_to_next}
+            </span>
+          )}
+        />
+      </div>
 
-        {/* 学习数据 */}
-        <div className="game-panel p-3">
-          <h3 className="font-semibold text-indigo-700 mb-4">📈 学习数据</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">累计答题</span>
-              <span className="text-slate-700 font-medium">{character.total_correct + character.total_wrong} 题</span>
-            </div>
-            <Progress
-              percent={Math.round((character.total_correct / Math.max(1, character.total_correct + character.total_wrong)) * 100)}
-              strokeColor="#34d399"
-              trailColor="#e2e8f0"
-              format={() => `正确率 ${character.total_correct}/${character.total_correct + character.total_wrong}`}
-            />
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">错题本</span>
-              <span className="text-rose-600 font-medium">{profile.wrong_count} 题</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">本周 EXP</span>
-              <span className="text-purple-600 font-medium">{character.weekly_exp}</span>
-            </div>
-            <div className="pt-2">
-              <div className="text-xs text-slate-500 mb-2">最近通关</div>
-              <div className="flex gap-2 flex-wrap">
-                {profile.recent_levels.map((l) => (
-                  <span key={l.code} className="px-2 py-1 rounded-lg bg-slate-50 text-[11px] text-slate-600">
-                    {l.icon} {l.name} · {l.best_score}/10
-                  </span>
-                ))}
-                {profile.recent_levels.length === 0 && (
-                  <span className="text-[11px] text-slate-500">还没有通关记录，去闯关吧！</span>
-                )}
+      {/* ===== 学习进度 + 我的排名 ===== */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => navigate('/learn')}
+          className="game-panel p-3 text-left active:bg-slate-50"
+        >
+          <div className="text-[11px] text-slate-500">学习进度</div>
+          <div className="text-lg font-bold text-indigo-600 leading-tight">
+            {learn?.completed ?? 0}
+            <span className="text-[11px] font-normal text-slate-400"> / {learn?.total ?? 135} 课时</span>
+          </div>
+          <Progress
+            percent={learn?.pct ?? 0}
+            size="small"
+            showInfo={false}
+            strokeColor="#6366f1"
+            trailColor="#e2e8f0"
+          />
+          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center">
+            继续学习 <RightOutlined className="text-[8px] ml-0.5" />
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate('/leaderboard')}
+          className="game-panel p-3 text-left active:bg-slate-50"
+        >
+          <div className="text-[11px] text-slate-500 flex items-center gap-1">
+            <TrophyOutlined className="text-amber-500" /> 我的排名
+          </div>
+          {rank?.class_rank ? (
+            <>
+              <div className="text-lg font-bold text-violet-600 leading-tight">
+                {rank.class_rank}
+                <span className="text-[11px] font-normal text-slate-400">
+                  {' '}/ {rank.class_size} 人（班）
+                </span>
               </div>
-            </div>
+              <div className="text-[11px] text-slate-500">
+                年级 {rank.grade_rank} / {rank.grade_size} 人
+              </div>
+            </>
+          ) : (
+            <div className="text-[12px] text-slate-400 mt-2">暂无排名</div>
+          )}
+          <div className="text-[10px] text-slate-400 mt-0.5 flex items-center">
+            查看排行榜 <RightOutlined className="text-[8px] ml-0.5" />
+          </div>
+        </button>
+      </div>
+
+      {/* ===== 答题统计 + 能力雷达 ===== */}
+      <div className="game-panel p-3">
+        <div className="text-[13px] font-semibold text-slate-700 mb-1.5">📊 答题统计</div>
+        <div className="md:flex md:items-center md:justify-center md:gap-8">
+          <div className="flex items-center gap-3 text-[11px] text-slate-500 mb-1 md:mb-0 md:w-36 md:shrink-0 md:flex-col md:items-stretch md:gap-2.5">
+            <span className="md:flex md:items-center md:justify-between">
+              <span>答对</span>{' '}
+              <b className="text-emerald-600">{character.total_correct} 题</b>
+            </span>
+            <span className="md:flex md:items-center md:justify-between">
+              <span>答错</span>{' '}
+              <b className="text-rose-600">{character.total_wrong} 题</b>
+            </span>
+            <span className="md:flex md:items-center md:justify-between">
+              <span>正确率</span>{' '}
+              <b className="text-indigo-600">
+                {Math.round(
+                  (character.total_correct /
+                    Math.max(1, character.total_correct + character.total_wrong)) *
+                    100,
+                )}
+                %
+              </b>
+            </span>
+          </div>
+          <div className="md:w-80 md:shrink-0">
+            <RadarChart subjects={radar.subjects} scores={radar.scores} />
           </div>
         </div>
       </div>
 
-      <Tabs
-        size="small"
-        defaultActiveKey="achievements"
-        items={[
-          {
-            key: 'achievements',
-            label: `🏅 成就墙 (${unlockedCount}/${achievements.length})`,
-            children: (
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                {achievements.map((a) => (
-                  <div
-                    key={a.code}
-                    className={`p-2.5 rounded-xl border text-center ${
-                      a.unlocked
-                        ? 'border-amber-300 bg-amber-50'
-                        : 'border-slate-200 bg-slate-100 opacity-50 grayscale'
-                    }`}
-                  >
-                    <div className="text-2xl mb-0.5">{a.icon}</div>
-                    <div className="text-sm font-medium text-slate-700">{a.name}</div>
-                    <div className="text-[10px] text-slate-500 mt-1">{a.description}</div>
-                    {a.unlocked && (
-                      <div className="text-[10px] text-amber-600/80 mt-1">
-                        +{a.exp_reward} EXP · +{a.coin_reward}🪙
-                      </div>
-                    )}
+      {/* ===== 成就墙 ===== */}
+      <div className="game-panel p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[13px] font-semibold text-slate-700">
+            🏅 成就墙
+            <span className="text-[11px] font-normal text-slate-400 ml-1">
+              {unlocked.length}/{achievements.length}
+            </span>
+          </div>
+          {achievements.length > 8 && (
+            <button
+              onClick={() => setShowAllAch(!showAllAch)}
+              className="text-[11px] text-indigo-600"
+            >
+              {showAllAch ? '收起' : '全部'}
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+          {achList.map((a) => (
+            <div
+              key={a.code}
+              title={`${a.name}：${a.description}`}
+              className={`rounded-xl border p-1.5 text-center ${
+                a.unlocked
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-slate-100 bg-slate-50 opacity-55'
+              }`}
+            >
+              <div className="text-lg leading-none">{a.icon}</div>
+              <div className="text-[9px] mt-0.5 truncate text-slate-600">{a.name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ===== 收藏（占位） ===== */}
+      <div className="game-panel p-3">
+        <div className="text-[13px] font-semibold text-slate-700 mb-1.5 flex items-center gap-1">
+          <StarOutlined className="text-amber-500" /> 我的收藏
+        </div>
+        <div className="rounded-xl border border-dashed border-slate-200 py-4 text-center">
+          <div className="text-[12px] text-slate-400">还没有收藏内容</div>
+          <div className="text-[10px] text-slate-300 mt-0.5">
+            课时 / 面试题的收藏功能正在开发中
+          </div>
+        </div>
+      </div>
+
+      {/* ===== 错题记录 ===== */}
+      <div className="game-panel p-3">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[13px] font-semibold text-slate-700">
+            📕 错题记录
+            <span className="text-[11px] font-normal text-slate-400 ml-1">
+              {wrong_count} 题
+            </span>
+          </div>
+          {wrongBook.length > 3 && (
+            <button
+              onClick={() => setShowAllWrong(!showAllWrong)}
+              className="text-[11px] text-indigo-600"
+            >
+              {showAllWrong ? '收起' : '全部'}
+            </button>
+          )}
+        </div>
+        {wrongBook.length === 0 ? (
+          <Empty
+            description="错题本是空的，答题错误会自动收录"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        ) : (
+          <div className="space-y-2">
+            {wrongList.map((w) => (
+              <div
+                key={w.id}
+                className={`rounded-xl border border-slate-100 p-2.5 ${w.resolved ? 'opacity-50' : ''}`}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] mb-1">
+                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
+                    {w.subject}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    {DIFF_LABELS[w.difficulty - 1]}
+                  </span>
+                  {w.resolved && <span className="text-emerald-600">✓ 已掌握</span>}
+                </div>
+                <div className="text-[12px] text-slate-700 leading-snug line-clamp-2">
+                  {w.stem}
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <div className="text-[10px] text-slate-400">
+                    你的答案 <span className="text-rose-500">{String(w.user_answer) || '（空）'}</span>
+                    {' · '}正确 <span className="text-emerald-600">{String(w.correct_answer)}</span>
                   </div>
-                ))}
-              </div>
-            ),
-          },
-          {
-            key: 'wrongbook',
-            label: `📕 错题本 (${wrongBook.length})`,
-            children: (
-              <div className="space-y-3">
-                {wrongBook.length === 0 && (
-                  <div className="text-center text-slate-500 py-12">错题本是空的，答题错误会自动收录 🎉</div>
-                )}
-                {wrongBook.map((w) => (
-                  <div key={w.id} className={`game-panel p-3 ${w.resolved ? 'opacity-50' : ''}`}>
-                    <div className="flex items-center gap-2 text-xs mb-2">
-                      <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">{w.subject}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{DIFF_LABELS[w.difficulty - 1]}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-600">错因：{w.reason || '未分类'}</span>
-                      {w.resolved && <span className="text-emerald-600 text-[11px]">✓ 已掌握</span>}
-                    </div>
-                    <div className="text-sm text-slate-700 mb-2">{w.stem}</div>
-                    <div className="text-xs text-slate-500 mb-1">
-                      你的答案：<span className="text-rose-600">{String(w.user_answer) || '（空）'}</span>
-                    </div>
-                    <div className="text-xs text-slate-500 mb-2">
-                      正确答案：<span className="text-emerald-600">{String(w.correct_answer)}</span>
-                    </div>
-                    <div className="text-xs text-slate-600 leading-relaxed">
-                      <span className="text-indigo-600">解析：</span>
-                      {w.explanation}
-                    </div>
-                    {!w.resolved && (
-                      <Button size="small" className="mt-2" onClick={() => resolveWrong(w.id)}>
-                        标记为已掌握
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ),
-          },
-          {
-            key: 'leaderboard',
-            label: '🏆 排行榜',
-            children: (
-              <div className="space-y-3">
-                <Segmented
-                  value={lbBoard}
-                  onChange={(v) => switchBoard(v as string)}
-                  options={[
-                    { label: '总榜', value: 'total' },
-                    { label: '周榜', value: 'week' },
-                    { label: '方向榜', value: 'class' },
-                  ]}
-                />
-                <div className="game-panel p-2">
-                  {leaderboard.map((e) => (
-                    <div
-                      key={e.rank}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm ${
-                        e.rank % 2 ? 'bg-slate-50' : 'bg-slate-50'
-                      }`}
+                  {!w.resolved && (
+                    <button
+                      onClick={() => resolveWrong(w.id)}
+                      className="text-[10px] text-indigo-600 shrink-0"
                     >
-                      <span className={`w-7 text-center font-bold ${e.rank <= 3 ? 'text-amber-600' : 'text-slate-500'}`}>
-                        {e.rank}
-                      </span>
-                      <span className="text-lg">{e.rank <= 3 ? ['🥇', '🥈', '🥉'][e.rank - 1] : ''}</span>
-                      <span className="flex-1 truncate text-slate-700">
-                        {e.character_name} <span className="text-[10px] text-slate-500">({e.nickname})</span>
-                      </span>
-                      <span className="text-[11px] text-slate-500">{e.class_name}</span>
-                      <span className="text-[11px] text-indigo-600">Lv.{e.level}</span>
-                      <span className="text-[11px] text-amber-600">
-                        {lbBoard === 'week' ? `${e.weekly_exp} 周EXP` : `${e.total_exp} EXP`}
-                      </span>
-                    </div>
-                  ))}
-                  {leaderboard.length === 0 && <div className="text-center text-slate-500 py-8">暂无数据</div>}
+                      标记掌握
+                    </button>
+                  )}
                 </div>
               </div>
-            ),
-          },
-          {
-            key: 'daily',
-            label: '📋 每日任务',
-            children: (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {daily_tasks.map((t: DailyTask) => (
-                  <div key={t.code} className="game-panel p-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-700">{t.name}</span>
-                      <span className="text-amber-600 text-xs">+{t.exp_reward} EXP +{t.coin_reward}🪙</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-1">{t.description}</div>
-                    <Progress
-                      percent={Math.min(100, (t.progress / t.target) * 100)}
-                      size="small"
-                      className="mt-2"
-                      strokeColor={t.done ? '#34d399' : '#6366f1'}
-                      trailColor="#e2e8f0"
-                      format={() => `${t.progress}/${t.target}`}
-                    />
-                  </div>
-                ))}
-              </div>
-            ),
-          },
-        ]}
-      />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ===== 退出登录（手机上唯一的入口） ===== */}
+      <Button block danger onClick={askLogout} className="mb-2">
+        退出登录
+      </Button>
     </div>
   )
 }

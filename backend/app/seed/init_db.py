@@ -11,7 +11,41 @@ _ADDED_COLUMNS = {
         ("code_passed", "TINYINT(1) NOT NULL DEFAULT 0"),
         ("quiz_json", "JSON NULL"),
     ],
+    # 学号 + 姓名（2026-10-26 注册改为学号制）
+    "users": [
+        ("student_id", "VARCHAR(16) NOT NULL DEFAULT ''"),
+        ("real_name", "VARCHAR(32) NOT NULL DEFAULT ''"),
+    ],
 }
+
+# 已下线的种子数据：签到任务、代码币/连续签到成就。
+# 种子函数只负责「缺了补上」，不会删旧行，所以这里显式清理一次。
+_REMOVED_SEEDS = {
+    "daily_tasks": ["signin"],
+    "achievements": ["coin_500", "streak_3", "streak_7"],
+}
+
+
+def prune_seed_rows() -> None:
+    """删掉界面上已经下线的任务/成就，避免「签到」「代码币」还挂在成就墙里。"""
+    from ..database import SessionLocal
+    from ..models import Achievement, DailyTask, UserAchievement, UserDailyTask
+
+    db = SessionLocal()
+    try:
+        for code in _REMOVED_SEEDS["daily_tasks"]:
+            db.query(UserDailyTask).filter(UserDailyTask.task_code == code).delete()
+            db.query(DailyTask).filter(DailyTask.code == code).delete()
+        for code in _REMOVED_SEEDS["achievements"]:
+            db.query(UserAchievement).filter(
+                UserAchievement.achievement_code == code).delete()
+            db.query(Achievement).filter(Achievement.code == code).delete()
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[migrate] 清理旧种子失败：{e}")
+    finally:
+        db.close()
 
 
 def ensure_columns() -> None:
@@ -54,6 +88,8 @@ def seed_all(db: Session | None = None) -> None:
     finally:
         if own:
             db.close()
+    if own:
+        prune_seed_rows()
 
 
 if __name__ == "__main__":

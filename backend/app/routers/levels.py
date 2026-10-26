@@ -29,8 +29,7 @@ def level_map(db: Session = Depends(get_db), user: User = Depends(get_current_us
                     "order_no": lv.order_no, "unlock_prev": lv.unlock_prev,
                     "subject": lv.subject, "tags": lv.tags or [],
                     "recommended_class": lv.recommended_class,
-                    "base_exp": lv.base_exp, "base_coins": lv.base_coins,
-                    "hp": lv.hp, "icon": lv.icon, "status": status,
+                    "base_exp": lv.base_exp, "icon": lv.icon, "status": status,
                     "best_score": prog.best_score if prog else 0,
                     "attempts": prog.attempts if prog else 0,
                     "completed": completed})

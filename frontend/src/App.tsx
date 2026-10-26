@@ -15,6 +15,7 @@ import Chat from './pages/Chat'
 import Interview from './pages/Interview'
 import BugHunter from './pages/BugHunter'
 import Profile from './pages/Profile'
+import Leaderboard from './pages/Leaderboard'
 
 function FullScreenSpin() {
   return (
@@ -76,6 +77,7 @@ function Routing() {
             <Route path="/interview" element={<Interview />} />
             <Route path="/bugs" element={<BugHunter />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
           </Route>
         </Route>
       </Route>

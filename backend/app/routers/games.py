@@ -140,7 +140,7 @@ def complete(body: Match3CompleteIn, db: Session = Depends(get_db),
         db.add(progress)
     progress.attempts += 1
 
-    exp_gain = coins_gain = 0
+    exp_gain = 0
     unlocked_next = None
     completed = body.score >= target
 
@@ -151,10 +151,8 @@ def complete(body: Match3CompleteIn, db: Session = Depends(get_db),
         progress.best_score = max(progress.best_score,
                                   min(10, round(body.score / target * 10)))
         exp_gain = level.base_exp
-        coins_gain = level.base_coins
         if body.score >= target * 1.5:      # 大幅超额额外奖励
             exp_gain += 30
-            coins_gain += 10
         char.total_quests += 1
         growth.report_daily_event(db, user, "quest_pass")
         growth.unlock_levels(db, user)
@@ -170,8 +168,7 @@ def complete(body: Match3CompleteIn, db: Session = Depends(get_db),
             progress.status = "unlocked"
 
     growth.add_exp(db, char, exp_gain)
-    growth.add_coins(db, char, coins_gain)
     growth.check_achievements(db, user)
     db.commit()
     return Match3CompleteOut(completed=completed, exp_gained=exp_gain,
-                             coins_gained=coins_gain, unlocked_next=unlocked_next)
+                             unlocked_next=unlocked_next)

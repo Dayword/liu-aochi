@@ -16,10 +16,29 @@ def now() -> datetime:
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # username 是登录名：新账号直接用 11 位学号，老账号保留原用户名（双轨兼容）
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(128))
     nickname: Mapped[str] = mapped_column(String(64), default="")
+    # 学号 11 位：前 4 位=年级，5~9 位=班级，后 2 位=班内座号（排行榜分组用）
+    student_id: Mapped[str] = mapped_column(String(16), default="", index=True)
+    real_name: Mapped[str] = mapped_column(String(32), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    @property
+    def grade(self) -> str:
+        """年级：学号前 4 位（如 2023）。"""
+        return self.student_id[:4] if len(self.student_id) >= 11 else ""
+
+    @property
+    def class_code(self) -> str:
+        """班级：学号第 5~9 位（5 位数字）。"""
+        return self.student_id[4:9] if len(self.student_id) >= 11 else ""
+
+    @property
+    def seat_no(self) -> str:
+        """班内座号：学号后 2 位。"""
+        return self.student_id[-2:] if len(self.student_id) >= 11 else ""
 
     character: Mapped["Character"] = relationship(back_populates="user", uselist=False)
 

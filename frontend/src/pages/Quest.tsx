@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { App, Button, Input, Modal, Progress } from 'antd'
+import { App, Button, Input, Progress } from 'antd'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../api/client'
 import { useAuth } from '../store/auth'
@@ -10,32 +10,27 @@ export default function Quest() {
   const { levelCode } = useParams<{ levelCode: string }>()
   const navigate = useNavigate()
   const { message } = App.useApp()
-  const { refreshCharacter, character } = useAuth()
+  const { refreshCharacter } = useAuth()
 
   const [runId, setRunId] = useState<string | null>(null)
   const [levelName, setLevelName] = useState('')
   const [question, setQuestion] = useState<QuestQuestion | null>(null)
   const [total, setTotal] = useState(10)
-  const [hp, setHp] = useState(3)
-  const [maxHp, setMaxHp] = useState(3)
   const [answer, setAnswer] = useState<number | string>(-1)
   const [result, setResult] = useState<AnswerResult | null>(null)
   const [settle, setSettle] = useState<Settlement | null>(null)
   const [loading, setLoading] = useState(false)
-  const [reviveOpen, setReviveOpen] = useState(false)
   const startedRef = useRef(false)
 
   const start = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await api.post<{ run_id: string; total: number; hp: number; level_code: string }>(
+      const r = await api.post<{ run_id: string; total: number; level_code: string }>(
         '/api/quests/start',
         { level_code: levelCode, mode: 'normal' },
       )
       setRunId(r.run_id)
       setTotal(r.total)
-      setHp(r.hp)
-      setMaxHp(r.hp)
       const q = await api.get<QuestQuestion>(`/api/quests/question/${r.run_id}`)
       setQuestion(q)
     } catch (e) {
@@ -79,11 +74,7 @@ export default function Quest() {
         question_id: question.question_id,
         answer,
       })
-      setHp(r.hp_left)
       setResult(r)
-      if (r.level_failed) {
-        setReviveOpen(true)
-      }
       await refreshCharacter()
     } catch (e) {
       message.error((e as Error).message)
@@ -105,34 +96,6 @@ export default function Quest() {
       }
     } else {
       loadNext().catch((e) => message.error((e as Error).message))
-    }
-  }
-
-  const revive = async () => {
-    if (!runId) return
-    try {
-      await api.post(`/api/quests/revive?run_id=${runId}`)
-      setReviveOpen(false)
-      message.success('复活成功！❤️ 生命值已恢复')
-      await refreshCharacter()
-      let q: QuestQuestion | null = null
-      try {
-        q = await api.get<QuestQuestion>(`/api/quests/question/${runId}`)
-      } catch (e) {
-        if (!(e instanceof ApiError && e.status === 409)) throw e
-        q = null // 409 = 题目已答完，直接进入结算
-      }
-      if (q?.question_id) {
-        setQuestion(q)
-        setAnswer(-1)
-        setResult(null)
-      } else {
-        // 已答完 → 结算
-        const s = await api.post<Settlement>(`/api/quests/settle?run_id=${runId}`)
-        setSettle(s)
-      }
-    } catch (e) {
-      message.warning((e as Error).message)
     }
   }
 
@@ -170,7 +133,6 @@ export default function Quest() {
 
           <div className="flex justify-center gap-6 text-sm mb-6">
             <span className="text-purple-600">✨ +{settle.total_exp} EXP</span>
-            <span className="text-amber-600">🪙 +{settle.total_coins} 代码币</span>
           </div>
 
           <AnimatePresence>
@@ -233,14 +195,7 @@ export default function Quest() {
             </button>
             <h1 className="font-bold text-indigo-800 mt-1">{levelName || '闯关挑战'}</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex gap-1" title="生命值">
-              {Array.from({ length: maxHp }).map((_, i) => (
-                <span key={i} className={`text-xl ${i < hp ? '' : 'opacity-25 grayscale'}`}>
-                  ❤️
-                </span>
-              ))}
-            </div>
+          <div className="flex items-center gap-3">
             <div className="text-sm text-slate-600 w-16 text-right">
               {question?.index ?? 0} / {total}
             </div>
@@ -347,7 +302,7 @@ export default function Quest() {
                   <div className={`font-medium mb-2 ${result.correct ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {result.correct ? '✅ 回答正确！' : '❌ 回答错误'}
                     <span className="ml-3 text-xs text-slate-500">
-                      +{result.exp_gained} EXP · +{result.coins_gained}🪙
+                      +{result.exp_gained} EXP
                     </span>
                   </div>
                   <div className="text-sm text-slate-700 leading-relaxed">
@@ -389,23 +344,6 @@ export default function Quest() {
         )}
       </div>
 
-      <Modal
-        open={reviveOpen}
-        onCancel={() => {
-          setReviveOpen(false)
-          exitToMap()
-        }}
-        onOk={revive}
-        okText="用 20 币复活"
-        cancelText="离开关卡"
-        title="❤️ 生命值耗尽"
-        centered
-      >
-        <p className="text-slate-600">
-          你已阵亡……可以用 <span className="text-amber-600">{character?.coins ?? 0} 代码币</span> 复活并恢复全部生命值，
-          继续完成挑战。离开后进度将保留，可重新挑战。
-        </p>
-      </Modal>
     </div>
   )
 }

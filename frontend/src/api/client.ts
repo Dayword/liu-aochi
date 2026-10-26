@@ -52,7 +52,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     let detail = `请求失败 (${resp.status})`
     try {
       const data = await resp.json()
-      if (data?.detail) detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
+      const d = data?.detail
+      if (typeof d === 'string') {
+        detail = d
+      } else if (Array.isArray(d) && d.length) {
+        // FastAPI 校验错误：[{loc, msg}]，取第一条并去掉 "Value error, " 前缀
+        const msg = String(d[0]?.msg ?? '')
+        if (msg) detail = msg.replace(/^Value error,\s*/, '')
+      } else if (d) {
+        detail = JSON.stringify(d)
+      }
     } catch {
       /* ignore */
     }

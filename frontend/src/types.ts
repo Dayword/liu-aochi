@@ -8,9 +8,6 @@ export interface Character {
   level: number
   exp: number
   exp_to_next: number
-  coins: number
-  hp: number
-  max_hp: number
   title: string
   weekly_exp: number
   total_exp: number
@@ -45,8 +42,6 @@ export interface LevelItem {
   tags: string[]
   recommended_class: string
   base_exp: number
-  base_coins: number
-  hp: number
   icon: string
   status: 'locked' | 'unlocked' | 'completed'
   best_score: number
@@ -80,12 +75,9 @@ export interface AnswerResult {
   user_answer: unknown
   expected_answer: unknown
   ai_analysis: string
-  hp_left: number
-  coins_gained: number
   exp_gained: number
   difficulty_now: number
   finished: boolean
-  level_failed: boolean
 }
 
 export interface Settlement {
@@ -95,7 +87,6 @@ export interface Settlement {
   wrong_count: number
   accuracy: number
   total_exp: number
-  total_coins: number
   level_completed: boolean
   unlocked_next: string | null
   new_achievements: { code: string; name: string; icon: string; description: string }[]
@@ -163,7 +154,6 @@ export interface BugSubmit {
   results: { input: string; expected: string; got: string; passed: boolean; time_ms: number }[]
   explanation: string
   exp_gained: number
-  coins_gained: number
   new_achievements: { code: string; name: string; icon: string }[]
 }
 
@@ -176,7 +166,6 @@ export interface Achievement {
   unlocked: boolean
   unlocked_at?: string
   exp_reward?: number
-  coin_reward?: number
 }
 
 export interface DailyTask {
@@ -188,7 +177,6 @@ export interface DailyTask {
   done: boolean
   claimed: boolean
   exp_reward: number
-  coin_reward: number
 }
 
 export interface WrongItem {
@@ -206,14 +194,47 @@ export interface WrongItem {
   created_at: string
 }
 
+/* ---------- 排行榜（学号体系） ---------- */
 export interface LeaderEntry {
   rank: number
-  nickname: string
-  character_name: string
-  class_name: string
+  student_id: string
+  name: string
+  seat_no: string
+  grade: string
+  class_code: string
+  completed: number
+  total: number
   level: number
-  total_exp: number
-  weekly_exp: number
+  is_me: boolean
+}
+
+export interface LeaderMe {
+  student_id: string
+  name: string
+  grade: string
+  class_code: string
+  seat_no: string
+  completed: number
+  total: number
+  class_rank: number
+  class_size: number
+  grade_rank: number
+  grade_size: number
+}
+
+export interface LeaderGroup {
+  grade: string
+  classes: { code: string; count: number }[]
+}
+
+export interface LeaderboardData {
+  scope: 'class' | 'grade'
+  grade: string
+  class_code: string
+  total_lessons: number
+  items: LeaderEntry[]
+  me: LeaderMe | Record<string, never>
+  groups: LeaderGroup[]
 }
 
 export interface Profile {
@@ -223,6 +244,9 @@ export interface Profile {
   wrong_count: number
   radar: { subjects: string[]; scores: number[] }
   recent_levels: { code: string; name: string; icon: string; best_score: number }[]
+  student: { student_id: string; real_name: string; grade: string; class_code: string; seat_no: string }
+  learn: { completed: number; total: number; pct: number }
+  rank: Partial<LeaderMe>
 }
 
 /** /api/code/run 的返回：沙箱执行结果 */
@@ -384,7 +408,6 @@ export interface Match3AnswerResult {
 export interface Match3CompleteResult {
   completed: boolean
   exp_gained: number
-  coins_gained: number
   unlocked_next: string | null
 }
 

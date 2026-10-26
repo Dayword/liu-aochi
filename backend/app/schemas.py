@@ -1,20 +1,82 @@
 """Pydantic 请求/响应模型。"""
+import re
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 # ---------- 认证 ----------
+# 学号 11 位：前 4 位年级 / 5~9 位班级 / 后 2 位班内座号
+STUDENT_ID_RE = re.compile(r"\d{11}")
+PASSWORD_RULE_TEXT = "密码需 8~64 位，且同时含大写字母、小写字母、数字、特殊符号"
+
+
+def password_problems(pwd: str) -> list[str]:
+    """返回缺失的字符类别，供前后端共用同一套规则文案。"""
+    missing = []
+    if not re.search(r"[A-Z]", pwd):
+        missing.append("大写字母")
+    if not re.search(r"[a-z]", pwd):
+        missing.append("小写字母")
+    if not re.search(r"\d", pwd):
+        missing.append("数字")
+    if not re.search(r"[^A-Za-z0-9\s]", pwd):
+        missing.append("特殊符号")
+    return missing
+
+
 class RegisterIn(BaseModel):
-    username: str = Field(min_length=3, max_length=32)
-    password: str = Field(min_length=6, max_length=64)
-    nickname: str = Field(default="", max_length=32)
+    student_id: str = Field(description="11 位学号")
+    real_name: str = Field(description="真实姓名，排行榜展示用")
+    password: str
+    confirm_password: str
+
+    @field_validator("student_id")
+    @classmethod
+    def _check_student_id(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not STUDENT_ID_RE.fullmatch(v):
+            raise ValueError("学号必须是 11 位数字")
+        return v
+
+    @field_validator("real_name")
+    @classmethod
+    def _check_name(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not 1 <= len(v) <= 20:
+            raise ValueError("请填写姓名（1~20 个字）")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def _check_password(cls, v: str) -> str:
+        if not 8 <= len(v) <= 64:
+            raise ValueError(PASSWORD_RULE_TEXT)
+        missing = password_problems(v)
+        if missing:
+            raise ValueError(f"密码缺少：{'、'.join(missing)}")
+        return v
+
+    @model_validator(mode="after")
+    def _check_confirm(self):
+        if self.password != self.confirm_password:
+            raise ValueError("两次输入的密码不一致")
+        return self
 
 
 class LoginIn(BaseModel):
-    username: str
+    # 学号登录；兼容老账号（原用户名）
+    student_id: str
     password: str
+
+    @field_validator("student_id")
+    @classmethod
+    def _strip(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("请输入学号")
+        return v
 
 
 class TokenOut(BaseModel):
@@ -47,9 +109,6 @@ class CharacterOut(BaseModel):
     level: int
     exp: int
     exp_to_next: int
-    coins: int
-    hp: int
-    max_hp: int
     title: str
     weekly_exp: int
     total_exp: int
@@ -76,8 +135,6 @@ class LevelOut(BaseModel):
     tags: list
     recommended_class: str
     base_exp: int
-    base_coins: int
-    hp: int
     icon: str
     status: str = "locked"   # locked/unlocked/completed
     best_score: int = 0
@@ -100,7 +157,6 @@ class QuestStartOut(BaseModel):
     run_id: str
     level_code: str
     total: int = 10
-    hp: int = 3
     mode: str = "normal"
 
 
@@ -129,12 +185,9 @@ class AnswerOut(BaseModel):
     user_answer: Any = None
     expected_answer: Any = None
     ai_analysis: str = ""          # 追问/AI 解析
-    hp_left: int
-    coins_gained: int
     exp_gained: int
     difficulty_now: int
     finished: bool = False         # 10 题答完
-    level_failed: bool = False     # HP 耗尽
 
 
 class SettlementOut(BaseModel):
@@ -144,7 +197,6 @@ class SettlementOut(BaseModel):
     wrong_count: int
     accuracy: float
     total_exp: int
-    total_coins: int
     level_completed: bool
     unlocked_next: Optional[str] = None
     new_achievements: list[dict] = []
@@ -229,7 +281,6 @@ class BugSubmitOut(BaseModel):
     results: list[dict]
     explanation: str
     exp_gained: int
-    coins_gained: int
     new_achievements: list[dict] = []
 
 
@@ -431,7 +482,6 @@ class Match3CompleteIn(BaseModel):
 class Match3CompleteOut(BaseModel):
     completed: bool
     exp_gained: int
-    coins_gained: int
     unlocked_next: Optional[str] = None
 
 
@@ -445,7 +495,6 @@ class AchievementOut(BaseModel):
     unlocked: bool
     unlocked_at: Optional[datetime] = None
     exp_reward: int = 0
-    coin_reward: int = 0
 
 
 class DailyTaskOut(BaseModel):
@@ -457,7 +506,6 @@ class DailyTaskOut(BaseModel):
     done: bool
     claimed: bool
     exp_reward: int
-    coin_reward: int
 
 
 class WrongAnswerOut(BaseModel):
@@ -476,13 +524,16 @@ class WrongAnswerOut(BaseModel):
 
 
 class LeaderboardEntry(BaseModel):
-    rank: int
-    nickname: str
-    character_name: str
-    class_name: str
+    rank: int                 # 组内名次
+    student_id: str           # 学号（11 位）
+    name: str                 # 姓名
+    seat_no: str              # 学号后两位（同分时的默认座次）
+    grade: str                # 年级 = 学号前 4 位
+    class_code: str           # 班级 = 学号 5~9 位
+    completed: int            # 已完成课时数（主排序）
+    total: int                # 课时总数
     level: int
-    total_exp: int
-    weekly_exp: int = 0
+    is_me: bool = False
 
 
 class RadarOut(BaseModel):
@@ -497,3 +548,7 @@ class ProfileOut(BaseModel):
     wrong_count: int
     radar: RadarOut
     recent_levels: list[dict]
+    # 学号体系（2026-10-26 新增）
+    student: dict = {}
+    learn: dict = {}
+    rank: dict = {}

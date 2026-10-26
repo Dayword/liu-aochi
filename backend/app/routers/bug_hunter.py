@@ -49,12 +49,10 @@ def submit(body: BugSubmitIn, db: Session = Depends(get_db),
     score = int(accuracy * 2 + quality * 0.8 + max(0, 30 - speed_ms / 100))
     passed = accuracy >= 100
     exp_gain = c.base_exp if passed else int(c.base_exp * accuracy / 200)
-    coin_gain = c.base_coins if passed else int(c.base_coins * accuracy / 200)
 
     char = user.character
     char.total_bugs += 1
     growth.add_exp(db, char, exp_gain)
-    growth.add_coins(db, char, coin_gain)
     db.add(BugRound(user_id=user.id, bug_code=c.code, difficulty=c.difficulty,
                     submitted_code=body.code, accuracy=accuracy, speed_ms=speed_ms,
                     quality=quality, score=score, tests_passed=result["passed"],
@@ -70,7 +68,7 @@ def submit(body: BugSubmitIn, db: Session = Depends(get_db),
                         quality=quality, tests_passed=result["passed"],
                         tests_total=result["total"], passed=passed,
                         results=result["results"], explanation=explanation,
-                        exp_gained=exp_gain, coins_gained=coin_gain,
+                        exp_gained=exp_gain,
                         new_achievements=[{"code": a.code, "name": a.name, "icon": a.icon}
                                           for a in new_ach])
 
