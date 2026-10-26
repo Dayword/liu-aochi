@@ -19,6 +19,9 @@ backend/.env
 # 日志与临时
 *.log
 
+# 部署打包产物（scripts/pack.sh 生成，含具体构建结果，不入库）
+ca-deploy.tar.gz
+
 # 本地工作区（Agent 记忆与临时文件，不属于项目源码）
 .workbuddy/
 

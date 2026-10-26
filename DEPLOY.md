@@ -2,6 +2,71 @@
 
 > 目标读者：自己的电脑上跑得好好的，现在想让别人（面试官、同学、HR）直接打开链接就能用。
 
+---
+
+## ⭐ 最省事的部署方式（2C2G 小机器首选，全程 5 分钟）
+
+**核心思路：服务器只做「安装」，不做「构建」。**
+
+为什么这条最可靠 —— 前几次踩的坑都出在同一处：
+
+| 现象 | 真实原因 |
+|---|---|
+| 阿里云推送「系统盘吞吐达到上限 `SysDisBPS`」 | `npm ci` 要解压/写入**上万个**小文件，40GiB ESSD Entry（最低档盘）扛不住 |
+| SSH 连上了、两分钟不出现密码提示 | 磁盘被打满时进程进 D 状态，`sshd` 一起排队，banner 发不出来 |
+| 部署跑到一半 SSH 断线，前功尽弃 | 前台跑长脚本，网络一抖就被杀 |
+| 2G 内存 OOM，安骑士/后端被 Killed | `npm ci` + `vite build` 和 MySQL、uvicorn 抢内存 |
+
+而**前端产物只有 2.3MB / 7 个文件**。放在本机构建、把成品传上去，服务器完全不需要 Node，上述四条一次性全部消失。
+
+### 四步命令
+
+```bash
+# ① 本机（项目根目录）：构建前端 + 打包，产物 ca-deploy.tar.gz 约 5.4MB
+bash scripts/pack.sh
+
+# ② 本机：传到服务器
+scp ca-deploy.tar.gz root@39.96.223.77:/root/
+
+# ③ 服务器：解包
+ssh root@39.96.223.77
+mkdir -p /root/liu-aochi && tar -xzf /root/ca-deploy.tar.gz -C /root/liu-aochi
+
+# ④ 服务器：装（2~3 分钟，注意最后那个 --skip-build）
+cd /root/liu-aochi && sudo bash deploy/deploy.sh 39.96.223.77 --skip-build
+```
+
+看到 `✅ 部署完成` 后验证：
+
+```bash
+systemctl is-active code-adventurer nginx mysql   # 三个 active
+curl -s http://127.0.0.1:8001/api/health          # guest_login:false, config_warnings:[]
+```
+
+浏览器打开 `http://39.96.223.77/` → 注册（用户名 ≥3 位、密码 ≥6 位）→ 建角色 → 开始用。
+
+### 三个补充说明
+
+- **`--skip-build` 做什么**：跳过安装 Node、跳过 `npm ci` 和 `vite build`，直接把包里的
+  `frontend/dist` 拷到 `/var/www/code-adventurer/dist`。其余（MySQL 建库、随机密钥、
+  关直通登录、swap、systemd、Nginx）完全一样。
+- **以后更新代码**：重复 ①②③④ 即可。脚本是幂等的，数据库和 `.env` 都会保留，
+  不会冲掉已有账号和进度。
+- **忘了 `--skip-build` 会怎样**：包里有 `frontend/dist`，但脚本会走默认分支去
+  `npm ci`，等于白等 10 分钟并重新踩一遍磁盘坑。**这条一定要带上。**
+
+### 想用域名
+
+把第 ④ 步换成（域名解析要先指向这台机器）：
+
+```bash
+sudo bash deploy/deploy.sh hongchi.xyz --https --skip-build
+```
+
+大陆服务器走域名需要 ICP 备案，详见第 3 节。
+
+---
+
 ## 0. 先理解一个前提：GitHub Pages 只能放前端
 
 目前 `https://dayword.github.io/liu-aochi/` 上跑的是**纯前端静态文件**，没有后端、没有数据库。

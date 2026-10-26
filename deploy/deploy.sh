@@ -6,10 +6,16 @@
 #   sudo bash deploy/deploy.sh hongchi.xyz --https   # 域名 + 自动申请证书
 #   sudo bash deploy/deploy.sh hongchi.xyz           # 先用 http 跑通
 #   sudo bash deploy/deploy.sh 1.2.3.4               # 没有域名、只用公网 IP
+#   sudo bash deploy/deploy.sh 1.2.3.4 --skip-build   # 小内存机器推荐：用本机构建好的前端
 #
 # 脚本做的事：装依赖 → 建专用系统用户 → 部署代码 → 建库建账号 →
-# 生成生产 .env（随机密钥、关闭直通登录）→ 构建前端 → 装 systemd + Nginx
+# 生成生产 .env（随机密钥、关闭直通登录）→ 准备前端 → 装 systemd + Nginx
 # →（可选）申请 Let's Encrypt 证书并开启自动续期。
+#
+# --skip-build：不装 Node、不跑 npm ci / vite build，直接用随包带来的
+# frontend/dist。2C2G 小机器上 `npm ci` 要写几万个小文件，会把 40G ESSD Entry
+# 的吞吐打满，进而拖住 sshd 让 SSH「连着但不回 banner」。用本机构建好的产物
+# 可以把部署时间从 ~10 分钟压到 2~3 分钟，并彻底避开这个问题。
 #
 # 幂等：重复执行会保留已有的 .env 与数据库，只更新代码与配置。
 # ============================================================
@@ -17,10 +23,12 @@ set -euo pipefail
 
 SITE_NAME=""
 ENABLE_HTTPS=0
+SKIP_BUILD=0
 for arg in "$@"; do
   case "$arg" in
     --https) ENABLE_HTTPS=1 ;;
-    -*) echo "未知参数: $arg（可用：--https）"; exit 1 ;;
+    --skip-build) SKIP_BUILD=1 ;;
+    -*) echo "未知参数: $arg（可用：--https / --skip-build）"; exit 1 ;;
     *)
       case "$arg" in
         https://*) ENABLE_HTTPS=1 ;;
@@ -32,7 +40,7 @@ done
 SITE_NAME="${SITE_NAME#http://}"; SITE_NAME="${SITE_NAME#https://}"; SITE_NAME="${SITE_NAME%%/*}"
 
 if [[ -z "$SITE_NAME" ]]; then
-  echo "用法: sudo bash deploy/deploy.sh <域名或公网IP> [--https]"
+  echo "用法: sudo bash deploy/deploy.sh <域名或公网IP> [--https] [--skip-build]"
   exit 1
 fi
 if [[ $EUID -ne 0 ]]; then
@@ -100,10 +108,13 @@ apt-get install -y -qq python3 python3-venv python3-dev build-essential \
   >/dev/null
 
 # Node 18+ 才能跑 Vite 6；Ubuntu 自带版本太旧，用 NodeSource 装 20.x
-if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -lt 18 ]]; then
-  log "安装 Node.js 20"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
-  apt-get install -y -qq nodejs >/dev/null
+# --skip-build 时前端产物是现成的，装 Node 纯属浪费 100MB 磁盘和两分钟
+if [[ $SKIP_BUILD -eq 0 ]]; then
+  if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -lt 18 ]]; then
+    log "安装 Node.js 20"
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+    apt-get install -y -qq nodejs >/dev/null
+  fi
 fi
 
 # ---------- 1.5 Swap（2G 内存机器的保命配置）----------
@@ -155,10 +166,13 @@ fi
 # ---------- 3. 部署代码 ----------
 log "同步代码到 $APP_DIR"
 mkdir -p "$APP_DIR" "$WEB_DIR"
-rsync -a --delete \
-  --exclude '.git' --exclude 'node_modules' --exclude 'venv' --exclude '.venv' \
-  --exclude '__pycache__' --exclude 'dist' --exclude '.env' --exclude '.env.production' \
-  "$SRC_DIR"/ "$APP_DIR"/
+# --skip-build 时要保留随包上传的 frontend/dist，否则第 7 步没东西可拷
+RSYNC_EXCLUDES=(--exclude '.git' --exclude 'node_modules' --exclude 'venv' --exclude '.venv'
+  --exclude '__pycache__' --exclude '.env' --exclude '.env.production')
+if [[ $SKIP_BUILD -eq 0 ]]; then
+  RSYNC_EXCLUDES+=(--exclude 'dist')
+fi
+rsync -a --delete "${RSYNC_EXCLUDES[@]}" "$SRC_DIR"/ "$APP_DIR"/
 mkdir -p "$APP_DIR/frontend" "$APP_DIR/backend"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
@@ -245,27 +259,44 @@ else
 fi
 chown "$APP_USER:$APP_USER" "$ENV_FILE"
 
-# ---------- 7. 前端构建 ----------
-log "构建前端"
-cd "$APP_DIR/frontend"
-
-# ICP 备案号：管局要求首页底部必须展示，抽查缺失会被要求整改。
-# 用法：ICP_BEIAN="冀ICP备2026xxxxxx号-1" sudo bash deploy/deploy.sh hongchi.xyz --https
-if [[ -n "${ICP_BEIAN:-}" ]]; then
-  echo "VITE_ICP_BEIAN=${ICP_BEIAN}" > .env.production
-  echo "已注入备案号：${ICP_BEIAN}（构建后显示在页面底部）"
-elif [[ -f .env.production ]]; then
-  echo "沿用已有 .env.production 里的备案号"
-fi
-if [[ -f package-lock.json ]]; then
-  npm ci --registry=https://registry.npmmirror.com --silent
+# ---------- 7. 前端 ----------
+# 两条路：
+#   A) 默认：在服务器上 npm ci + vite build。省事但吃 CPU/磁盘，2C2G + 40G Entry
+#      的机器上容易把云盘吞吐打满，进而拖住 sshd（表现为 SSH 连着却不回 banner）。
+#   B) --skip-build：用本机 npm run build 好的 frontend/dist，直接拷进 WEB_DIR。
+#      不装 Node、不写几万个小文件，2~3 分钟装完，小机器强烈推荐。
+if [[ $SKIP_BUILD -eq 1 ]]; then
+  log "使用预构建的前端产物（跳过 npm 安装与构建）"
+  if [[ ! -f "$APP_DIR/frontend/dist/index.html" ]]; then
+    echo -e "\033[1;31m❌ 没找到 frontend/dist/index.html\033[0m"
+    echo "   请在**本机**先构建：cd frontend && npm run build"
+    echo "   再用 scripts/pack.sh 重新打包上传；或去掉 --skip-build 让服务器自己构建。"
+    exit 1
+  fi
+  rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_DIR/dist/"
+  echo "已拷贝 $(find "$WEB_DIR/dist" -type f | wc -l) 个文件，共 $(du -sh "$WEB_DIR/dist" | cut -f1)"
 else
-  npm install --registry=https://registry.npmmirror.com --silent
+  log "构建前端"
+  cd "$APP_DIR/frontend"
+
+  # ICP 备案号：管局要求首页底部必须展示，抽查缺失会被要求整改。
+  # 用法：ICP_BEIAN="冀ICP备2026xxxxxx号-1" sudo bash deploy/deploy.sh hongchi.xyz --https
+  if [[ -n "${ICP_BEIAN:-}" ]]; then
+    echo "VITE_ICP_BEIAN=${ICP_BEIAN}" > .env.production
+    echo "已注入备案号：${ICP_BEIAN}（构建后显示在页面底部）"
+  elif [[ -f .env.production ]]; then
+    echo "沿用已有 .env.production 里的备案号"
+  fi
+  if [[ -f package-lock.json ]]; then
+    npm ci --registry=https://registry.npmmirror.com --silent
+  else
+    npm install --registry=https://registry.npmmirror.com --silent
+  fi
+  # 服务器根路径托管，base 用默认的 '/'（GitHub Pages 那份才需要 --base=/liu-aochi/）
+  echo "构建中：接下来 1~2 分钟 CPU 会打满、云盘吞吐可能触顶（阿里云会推送告警），属正常，不要中断"
+  npm run build --silent
+  rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_DIR/dist/"
 fi
-# 服务器根路径托管，base 用默认的 '/'（GitHub Pages 那份才需要 --base=/liu-aochi/）
-echo "构建中：接下来 1~2 分钟 CPU 会打满、云盘 IOPS 可能触顶（阿里云会推送告警），属正常，不要中断"
-npm run build --silent
-rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_DIR/dist/"
 chown -R www-data:www-data "$WEB_DIR"
 
 # ---------- 8. systemd 服务 ----------
