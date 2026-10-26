@@ -314,25 +314,36 @@ def leaderboard_groups(db: Session) -> list[dict]:
 
 
 # ---------- 能力雷达 ----------
+# 六个维度 → 课程科目分组。雷达口径是**课时覆盖率**（该维度已完成课时 / 该维度总课时）。
+#
+# 为什么不用「答题正确率」：题目只记了错题（WrongAnswer），答对的没留痕，
+# 旧实现把「没做过的题」当成答对，分母还算错成 1，导致 3100% 这种数把雷达撑爆画布。
+# 课时进度是确定的数据，且与「学习进度」主指标一致。
+RADAR_DIMENSIONS: list[tuple[str, list[str]]] = [
+    ("数据结构", ["数据结构"]),
+    ("算法", ["Python"]),                   # Python 主线含递归/排序/查找等算法内容
+    ("操作系统", ["操作系统"]),
+    ("计算机网络", ["计算机网络"]),
+    ("数据库", ["MySQL", "Redis"]),
+    ("软件工程", ["后端服务工程", "AI 工程质量", "多模态与部署",
+                  "RAG 检索工程", "Transformer", "数据分析与处理"]),
+]
+
+
 def radar_data(db: Session, user: User) -> dict:
-    """按学科正确率生成能力雷达（无数据学科给 0）。"""
-    from ..models import Question, WrongAnswer
-    char = user.character
-    if char.total_correct + char.total_wrong == 0:
-        subjects = ["数据结构", "算法", "操作系统", "计算机网络", "数据库", "软件工程"]
-        return {"subjects": subjects, "scores": [0] * 6}
-    wrong_qids = {w.question_id for w in db.query(WrongAnswer).filter(
-        WrongAnswer.user_id == user.id).all()}
-    qs = db.query(Question).all()
-    stats: dict[str, list[int]] = {}
-    for q in qs:
-        if q.id in wrong_qids:
-            stats.setdefault(q.subject, [0, 1])[1] += 1
-        else:
-            stats.setdefault(q.subject, [0, 1])[0] += 1
-    subjects = ["数据结构", "算法", "操作系统", "计算机网络", "数据库", "软件工程"]
-    scores = []
-    for s in subjects:
-        right, total = stats.get(s, (0, 0))
-        scores.append(round(right / total * 100, 1) if total else 0)
+    """按科目课时完成率生成能力雷达（每个维度恒为 0~100）。"""
+    from ..models import LearnProgress
+    from ..seed.learn import BY_SUBJECT
+
+    done_codes = {code for (code,) in db.query(LearnProgress.point_code).filter(
+        LearnProgress.user_id == user.id,
+        LearnProgress.status == "completed").all()}
+
+    subjects, scores = [], []
+    for label, group in RADAR_DIMENSIONS:
+        total = sum(len(BY_SUBJECT.get(s, [])) for s in group)
+        done = sum(1 for s in group for p in BY_SUBJECT.get(s, [])
+                   if p["code"] in done_codes)
+        subjects.append(label)
+        scores.append(round(done / total * 100, 1) if total else 0)
     return {"subjects": subjects, "scores": scores}

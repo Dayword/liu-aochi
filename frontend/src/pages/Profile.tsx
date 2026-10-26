@@ -15,10 +15,12 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
   useEffect(() => {
     if (!ref.current) return
     const chart = echarts.init(ref.current)
+    // 上限按数据取，避免后端万一给出超过 100 的值时多边形飞出画布糊成一片
+    const max = Math.max(100, ...scores.map((v) => Math.ceil(v / 10) * 10))
     chart.setOption({
       backgroundColor: 'transparent',
       radar: {
-        indicator: subjects.map((s) => ({ name: s, max: 100 })),
+        indicator: subjects.map((s) => ({ name: s, max })),
         radius: '70%',
         axisName: { color: '#64748b', fontSize: 9 },
         splitLine: { lineStyle: { color: 'rgba(99,102,241,0.25)' } },
@@ -211,7 +213,7 @@ export default function Profile() {
 
       {/* ===== 答题统计 + 能力雷达 ===== */}
       <div className="game-panel p-3">
-        <div className="text-[13px] font-semibold text-slate-700 mb-1.5">📊 答题统计</div>
+        <div className="text-[13px] font-semibold text-slate-700 mb-1.5">📊 答题统计 · 能力雷达</div>
         <div className="md:flex md:items-center md:justify-center md:gap-8">
           <div className="flex items-center gap-3 text-[11px] text-slate-500 mb-1 md:mb-0 md:w-36 md:shrink-0 md:flex-col md:items-stretch md:gap-2.5">
             <span className="md:flex md:items-center md:justify-between">
