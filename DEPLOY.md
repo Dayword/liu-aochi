@@ -325,6 +325,7 @@ http://39.96.223.77/
 | 浏览器一直转圈 | 安全组没放行 80 | 控制台安全组；`ss -lntp \| grep :80` |
 | 502 Bad Gateway | 后端没起来 | `systemctl status code-adventurer` + `journalctl -u code-adventurer -n 50` |
 | 打开是登录页但登录报错 | 数据库没连上 | `tail -f /var/log/nginx/code-adventurer.error.log` |
+| **注册/登录返回 500**，首页正常 | **bcrypt 被装成 5.x**，与 passlib 1.7.4 不兼容 | `journalctl -u code-adventurer -n 40 \| grep -i bcrypt`，看到 `password cannot be longer than 72 bytes` 即是。修：`venv/bin/pip install "bcrypt>=4.0.1,<5"` 后重启。**requirements.txt 已写死 `<5`**，用最新包部署不会遇到 |
 | 页面能开、注册后白屏 | 前端构建产物没同步 | `ls /var/www/code-adventurer/dist` |
 | 导入数据后中文变问号 | 少了 `--default-character-set=utf8mb4` | 重新导一次 |
 | 服务器重启后网站打不开 | 服务没设开机自启 | `systemctl is-enabled code-adventurer nginx mysql` |
