@@ -133,9 +133,20 @@ git clone https://github.com/Dayword/liu-aochi.git /root/liu-aochi
 cd /root/liu-aochi && sudo bash deploy/deploy.sh 39.96.223.77
 ```
 
+> ⚠️ **别在 SSH 前台直接跑**：按这个顺序跑 5~8 分钟，中途网断了（笔记合盖、
+> WiFi 抖动、手机热点切回）SSH 会话一断，脚本会被 SIGHUP 杀掉，留下装了一半的状态。
+> 稳妥写法是后台跑 + 跟日志：
+>
+> ```bash
+> cd /root/liu-aochi
+> nohup bash deploy/deploy.sh 39.96.223.77 > /root/deploy.log 2>&1 &
+> tail -f /root/deploy.log        # 看进度，Ctrl+C 只是退出查看，不会中断部署
+> ```
+>
+> 断线重连后再 `tail -f /root/deploy.log` 继续看；看到 `✅ 部署完成` 就好。
+
 约 5~8 分钟（大部分时间在装 `numpy/pandas` 和构建前端）。脚本会自动装 Nginx / MySQL /
 Python 依赖、建库建账号、生成随机密钥、**关闭直通登录**、配置 2GB swap、停掉预装 Docker。
-看到 `✅ 部署完成` 就行。
 
 ### 步骤 3：验证（3 条命令，别跳过）
 
