@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from functools import lru_cache
 from pathlib import Path
@@ -184,6 +185,13 @@ def _truncate(text: str, limit: int) -> str:
     return text[:limit] + f"\n…（输出过长，已截断到 {limit} 字符）"
 
 
+# 全局并发名额：自由运行、课程判定、离线自检都走同一个池子，防止叠加超卖。
+_slots = threading.BoundedSemaphore(max(1, settings.CODE_MAX_CONCURRENCY))
+# 排队多久还没轮到就放弃。故意设短：学生宁可立刻看到「稍后再试」，
+# 也不愿意盯着转圈十几秒。
+_SLOT_WAIT_SECONDS = 2.0
+
+
 def run_python(code: str, stdin_data: str = "", timeout: int | None = None,
                strict: bool = True) -> dict:
     """执行 Python 代码，返回输出/错误/耗时。
@@ -198,6 +206,24 @@ def run_python(code: str, stdin_data: str = "", timeout: int | None = None,
     if err:
         return {"stdout": "", "stderr": err, "exit_code": 1, "time_ms": 0}
 
+    # 并发闸门：2C2G 上同时起太多子进程会撞 OOM，内核通常先杀 MySQL。
+    # 拿不到名额时**快速失败**而不是长时间阻塞 —— 同步路由跑在 FastAPI 的
+    # 线程池里，几十个请求同时干等会把线程占满，连不跑代码的接口一起拖死。
+    if not _slots.acquire(timeout=_SLOT_WAIT_SECONDS):
+        return {
+            "stdout": "",
+            "stderr": "当前同时运行代码的人有点多，请等几秒再点一次「运行」",
+            "exit_code": 125,
+            "time_ms": 0,
+        }
+    try:
+        return _execute_locked(code, stdin_data, timeout)
+    finally:
+        _slots.release()
+
+
+def _execute_locked(code: str, stdin_data: str, timeout: int | None) -> dict:
+    """真正起子进程执行；调用方必须已持有 _slots 名额。"""
     limit = timeout or settings.CODE_RUN_TIMEOUT
     start = time.time()
     workdir = tempfile.mkdtemp(prefix="ca_sandbox_")

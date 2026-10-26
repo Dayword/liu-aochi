@@ -69,6 +69,13 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       clearToken()
       gotoLogin()
     }
+    // 429 有两种来源：应用层会返回中文 detail（已解析出来，保留它）；
+    // nginx 层的 limit_req 返回的是 HTML 错误页，解析失败会落回默认文案，
+    // 这里替换成人话，否则用户看到「请求失败 (429)」以为是网站坏了。
+    if (resp.status === 429 && detail === `请求失败 (429)`) {
+      const wait = resp.headers.get('Retry-After')
+      detail = wait ? `操作太频繁，请 ${wait} 秒后再试` : '操作太频繁了，请等几秒再点一次'
+    }
     throw new ApiError(resp.status, detail)
   }
   if (resp.status === 204) return undefined as T

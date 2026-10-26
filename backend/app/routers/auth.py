@@ -14,10 +14,13 @@ from ..services.rate_limit import SlidingWindowLimiter, enforce
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# 防密码爆破：同一 IP 每分钟最多 10 次登录尝试
-_login_limiter = SlidingWindowLimiter(10, 60, "登录尝试")
-# 防批量注册：同一 IP 每小时最多 10 个账号
-_register_limiter = SlidingWindowLimiter(10, 3600, "注册")
+# 防密码爆破：同一 IP 每分钟最多 30 次登录尝试。
+# 不能更紧 —— 校园网/宿舍 WiFi 下几十个学生共用一个出口 IP，30 人才刚好够一个班同时登录。
+# 对爆破而言 30 次/分钟仍无实际威胁（8 位复杂密码的空间远超单日 4.3 万次）。
+_login_limiter = SlidingWindowLimiter(30, 60, "登录尝试")
+# 防批量注册：同一 IP 每小时最多 50 个账号。
+# 开学第一节课全班同时注册是真实场景，原来的 10 个会让后排的人干等一小时。
+_register_limiter = SlidingWindowLimiter(50, 3600, "注册")
 
 
 @router.post("/register", response_model=TokenOut)

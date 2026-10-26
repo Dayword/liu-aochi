@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     CODE_MAX_FILE_BYTES: int = 8 * 1024 * 1024
     # 返回给前端的 stdout / stderr 截断长度，防止 print 炸弹撑爆响应
     CODE_MAX_OUTPUT: int = 20_000
+    # 同时执行的沙箱子进程数上限。2C2G 机器上 MySQL 已占 ~400MB、uvicorn ~200MB，
+    # 单个子进程最坏能吃满 CODE_MAX_MEMORY_MB，不限并发会被 OOM Killer 连 MySQL 一起杀掉。
+    # 2 核下取 3：留 1 核给 Web 与数据库，内存峰值约 1.5GB，留出余量。
+    CODE_MAX_CONCURRENCY: int = 3
 
     # 限流（公网部署的关键成本闸门，单位为「次 / 窗口」）
     CODE_RUN_PER_MINUTE: int = 12          # 同一用户每分钟可运行代码次数

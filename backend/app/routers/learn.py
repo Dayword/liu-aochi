@@ -54,6 +54,26 @@ def _fullwidth_hint(code: str, lang: str = "Python") -> str:
             f"{lang} 只认英文半角符号，这是最常见的原因之一。")
 
 
+BUSY_EXIT_CODE = 125
+
+
+def _run_or_busy(code: str) -> dict:
+    """跑一次沙箱；并发名额满了就抛 503，绝不混进「答案判定」。
+
+    `code_runner` 用 exit_code=125 表示没抢到并发名额（服务器忙），不是学生代码的问题。
+    如果让它落进下面的判定分支，学生写得全对也会被判错，提示还是「你的代码运行出错」，
+    属于最坏的一种误导。宁可让他看到「稍后再试」，也不能给假判定。
+    """
+    r = run_python(code)
+    if r.get("exit_code") == BUSY_EXIT_CODE:
+        raise HTTPException(
+            503,
+            r.get("stderr") or "当前同时运行代码的人有点多，请等几秒再提交",
+            headers={"Retry-After": "3"},
+        )
+    return r
+
+
 def _runtime_reason(result: dict, code: str = "") -> str:
     """运行失败时给一句新手看得懂的话（超时＝死循环、全角符号，是两个最高频的坑）。"""
     err = result.get("stderr") or ""
@@ -381,7 +401,7 @@ def check(body: LearnCheckIn, db: Session = Depends(get_db),
 
         # ---- 一、输出用例：换不同的输入各跑一遍 ----
         for idx, c in enumerate(cases):
-            r = run_python((c.get("setup") or "") + user_code)
+            r = _run_or_busy((c.get("setup") or "") + user_code)
             output, error = r["stdout"], r["stderr"]
             if r["exit_code"] != 0:
                 reason = _runtime_reason(r, user_code)
@@ -408,12 +428,12 @@ def check(body: LearnCheckIn, db: Session = Depends(get_db),
         if not reason and checker:
             # 先单独跑一遍学生的代码。这一步就报错，说明问题出在他自己写的代码上
             # （语法错、名字拼错、死循环），可以给对症的解释。
-            solo = run_python(setup + user_code)
+            solo = _run_or_busy(setup + user_code)
             if solo["exit_code"] != 0:
                 reason = _runtime_reason(solo, user_code)
                 error, output = solo["stderr"], solo["stdout"]
             else:
-                r = run_python(setup + user_code + "\n\n" + checker)
+                r = _run_or_busy(setup + user_code + "\n\n" + checker)
                 raw, error = r["stdout"], r["stderr"]
                 output = raw
                 if r["exit_code"] != 0:
