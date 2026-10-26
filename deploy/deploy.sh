@@ -3,19 +3,36 @@
 # 代码冒险者 · Ubuntu 一键部署脚本（22.04 / 24.04 实测可用）
 #
 # 在**服务器**上、项目目录内执行：
-#   sudo bash deploy/deploy.sh your-domain.com
-#   sudo bash deploy/deploy.sh 1.2.3.4        # 没有域名、只用公网 IP
+#   sudo bash deploy/deploy.sh hongchi.xyz --https   # 域名 + 自动申请证书
+#   sudo bash deploy/deploy.sh hongchi.xyz           # 先用 http 跑通
+#   sudo bash deploy/deploy.sh 1.2.3.4               # 没有域名、只用公网 IP
 #
 # 脚本做的事：装依赖 → 建专用系统用户 → 部署代码 → 建库建账号 →
-# 生成生产 .env（随机密钥、关闭直通登录）→ 构建前端 → 装 systemd + Nginx。
+# 生成生产 .env（随机密钥、关闭直通登录）→ 构建前端 → 装 systemd + Nginx
+# →（可选）申请 Let's Encrypt 证书并开启自动续期。
 #
 # 幂等：重复执行会保留已有的 .env 与数据库，只更新代码与配置。
 # ============================================================
 set -euo pipefail
 
-SITE_NAME="${1:-}"
+SITE_NAME=""
+ENABLE_HTTPS=0
+for arg in "$@"; do
+  case "$arg" in
+    --https) ENABLE_HTTPS=1 ;;
+    -*) echo "未知参数: $arg（可用：--https）"; exit 1 ;;
+    *)
+      case "$arg" in
+        https://*) ENABLE_HTTPS=1 ;;
+      esac
+      SITE_NAME="$arg"
+      ;;
+  esac
+done
+SITE_NAME="${SITE_NAME#http://}"; SITE_NAME="${SITE_NAME#https://}"; SITE_NAME="${SITE_NAME%%/*}"
+
 if [[ -z "$SITE_NAME" ]]; then
-  echo "用法: sudo bash deploy/deploy.sh <域名或公网IP>"
+  echo "用法: sudo bash deploy/deploy.sh <域名或公网IP> [--https]"
   exit 1
 fi
 if [[ $EUID -ne 0 ]]; then
@@ -32,6 +49,47 @@ DB_USER="ca_app"
 PY_BIN="python3"
 
 log() { echo -e "\n\033[1;36m==> $*\033[0m"; }
+
+# ---------- 0. 判断是域名还是 IP ----------
+# 域名要走 server_name + 可选的证书流程；IP 则只能 http、且没有 www。
+IS_DOMAIN=1
+if [[ "$SITE_NAME" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+  IS_DOMAIN=0
+fi
+SERVER_NAMES="$SITE_NAME"
+WWW_OK=0
+# 有人习惯直接输 www.xxx，统一收敛到裸域，否则会去找 www.www.xxx
+if [[ "$SITE_NAME" == www.* ]]; then
+  SITE_NAME="${SITE_NAME#www.}"
+  SERVER_NAMES="$SITE_NAME www.$SITE_NAME"
+  WWW_OK=1
+fi
+if [[ $IS_DOMAIN -eq 1 && $WWW_OK -eq 0 ]]; then
+  # 只有 www 也能解析到本机时才把它写进 server_name / 证书，否则 certbot 会因
+  # 「www 解析不到」直接失败（这是最容易踩的一步，所以提前查而不是交给 certbot 报错）
+  WWW_IP="$(getent hosts "www.$SITE_NAME" | awk '{print $1}' | head -1 || true)"
+  if [[ -n "$WWW_IP" ]]; then
+    SERVER_NAMES="$SITE_NAME www.$SITE_NAME"
+    WWW_OK=1
+  fi
+fi
+
+# ---------- 0.5 DNS 预检 ----------
+# 域名解析没生效时，Nginx 能起来但打开是「不是私密连接」或别人的页面，
+# 证书申请也必然失败。提前查一次并给出确切提示，省得装完才排查。
+if [[ $IS_DOMAIN -eq 1 ]]; then
+  PUB_IP="$(curl -fsS --max-time 8 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/null \
+            || curl -fsS --max-time 8 https://ipinfo.io/ip 2>/dev/null || true)"
+  DNS_IP="$(getent ahostsv4 "$SITE_NAME" 2>/dev/null | awk 'NR==1{print $1}' || true)"
+  echo "本机公网 IP : ${PUB_IP:-未知}"
+  echo "$SITE_NAME 解析到: ${DNS_IP:-未解析}"
+  if [[ -n "$PUB_IP" && -n "$DNS_IP" && "$PUB_IP" != "$DNS_IP" ]]; then
+    echo "⚠️ 域名没有指向本机：请在域名解析处把 A 记录改成 $PUB_IP，等 TTL 生效后重跑。"
+    echo "   继续执行也能装好站点，但用域名访问会打不开。"
+  elif [[ -z "$DNS_IP" ]]; then
+    echo "⚠️ 域名暂无 A 记录：先去加一条 A 记录指向 $PUB_IP（主机记录填 @，需要 www 就再加一条）。"
+  fi
+fi
 
 # ---------- 1. 系统依赖 ----------
 log "安装系统依赖"
@@ -149,8 +207,9 @@ REDIS_URL=redis://127.0.0.1:6379/0
 SECRET_KEY=${SECRET}
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 
-# 公网必须只允许本站域名访问
-CORS_ORIGINS=http://${SITE_NAME}
+# 公网必须只允许本站域名访问（前后端同源部署，CORS 实际不生效，
+# 但保留白名单能让「有人在别的页面里偷偷调你接口」多一层拦阻）
+CORS_ORIGINS=http://${SITE_NAME}$([[ $IS_DOMAIN -eq 1 ]] && echo ",http://www.${SITE_NAME},https://${SITE_NAME},https://www.${SITE_NAME}" || echo "")
 
 # 公网必须关闭直通登录，否则所有人共享同一账号
 ALLOW_GUEST_LOGIN=false
@@ -174,6 +233,15 @@ ENVEOF
   echo "已生成 .env（数据库密码和 JWT 密钥为随机值，已记录在本文件）"
 else
   echo "已存在 .env，跳过（如需改 AI Key 请手动编辑 $ENV_FILE）"
+  # 从 IP 换成域名、或先 http 后 https 时，白名单要跟着改，否则旧域名残留在里面
+  NEW_CORS="http://${SITE_NAME}"
+  if [[ $IS_DOMAIN -eq 1 ]]; then
+    NEW_CORS="http://${SITE_NAME},http://www.${SITE_NAME},https://${SITE_NAME},https://www.${SITE_NAME}"
+  fi
+  if grep -q '^CORS_ORIGINS=' "$ENV_FILE"; then
+    sed -i "s#^CORS_ORIGINS=.*#CORS_ORIGINS=${NEW_CORS}#" "$ENV_FILE"
+    echo "已把 CORS_ORIGINS 更新为：${NEW_CORS}"
+  fi
 fi
 chown "$APP_USER:$APP_USER" "$ENV_FILE"
 
@@ -198,7 +266,7 @@ systemctl enable code-adventurer >/dev/null 2>&1 || true
 
 # ---------- 9. Nginx ----------
 log "配置 Nginx"
-sed "s/server_name your-domain.com;/server_name ${SITE_NAME};/" \
+sed "s/__SERVER_NAME__/${SERVER_NAMES}/" \
   "$APP_DIR/deploy/nginx.conf" > /etc/nginx/sites-available/code-adventurer
 ln -sf /etc/nginx/sites-available/code-adventurer /etc/nginx/sites-enabled/code-adventurer
 rm -f /etc/nginx/sites-enabled/default
@@ -223,15 +291,49 @@ else
   echo -e "\n\033[1;31m❌ 后端启动失败，查看日志：journalctl -u code-adventurer -n 50 --no-pager\033[0m"
 fi
 
+# ---------- 12. HTTPS（可选，域名才需要）----------
+# 用 certbot 的 nginx 插件：它会自动改 server 块、加 443、把 80 重定向到 443，
+# 比手写证书路径稳（续期时也会自动维护这份配置）。
+HTTPS_ON=0
+if [[ "$ENABLE_HTTPS" == "1" && $IS_DOMAIN -eq 1 ]]; then
+  log "申请 HTTPS 证书"
+  apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
+
+  CERT_ARGS=(-d "$SITE_NAME" --nginx --non-interactive --agree-tos --redirect
+             -m "${CERT_EMAIL:-admin@$SITE_NAME}")
+  if [[ $WWW_OK -eq 1 ]]; then
+    CERT_ARGS+=(-d "www.$SITE_NAME")
+  fi
+
+  if certbot "${CERT_ARGS[@]}"; then
+    HTTPS_ON=1
+    systemctl enable --now certbot.timer >/dev/null 2>&1 || true
+    echo "证书已签发，自动续期已交给 certbot.timer（每天检查，到期前 30 天续）"
+  else
+    echo "⚠️ 证书申请失败。最常见原因："
+    echo "   1) 域名没解析到本机（先看上面的 DNS 预检结果）"
+    echo "   2) 大陆服务器未备案，80 端口被运营商/云厂商拦截 —— 这种情况先解决备案"
+    echo "   3) 80 端口被安全组挡住（阿里云「安全组」里要放行 80/443）"
+    echo "   站点本身仍可通过 http 访问，处理好后重跑本脚本即可。"
+  fi
+elif [[ "$ENABLE_HTTPS" == "1" && $IS_DOMAIN -eq 0 ]]; then
+  echo "⚠️ 用 IP 访问无法申请证书（Let's Encrypt 不给 IP 签发），已跳过 HTTPS。"
+fi
+
+if [[ $HTTPS_ON -eq 1 ]]; then ACCESS_URL="https://${SITE_NAME}"; else ACCESS_URL="http://${SITE_NAME}"; fi
+
 cat <<SUMMARY
 
-访问地址      http://${SITE_NAME}
-健康检查      http://${SITE_NAME}/api/health
+访问地址      ${ACCESS_URL}
+健康检查      ${ACCESS_URL}/api/health
 后端日志      journalctl -u code-adventurer -f
 Nginx 日志    tail -f /var/log/nginx/code-adventurer.error.log
 生产配置      ${APP_DIR}/backend/.env
 
 首次使用请先注册账号（已关闭免登录直通）。
-如需 HTTPS：apt install certbot python3-certbot-nginx && certbot --nginx -d ${SITE_NAME}
-
 SUMMARY
+if [[ $HTTPS_ON -eq 0 ]]; then
+  if [[ $IS_DOMAIN -eq 1 ]]; then
+    echo "如需 HTTPS：重跑 sudo bash deploy/deploy.sh ${SITE_NAME} --https"
+  fi
+fi

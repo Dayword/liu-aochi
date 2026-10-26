@@ -104,7 +104,10 @@ git push origin main
 ssh root@1.2.3.4
 apt-get update && apt-get install -y git
 git clone https://github.com/Dayword/liu-aochi.git /root/liu-aochi
-cd /root/liu-aochi && sudo bash deploy/deploy.sh 1.2.3.4     # 有域名就写域名
+cd /root/liu-aochi && sudo bash deploy/deploy.sh 1.2.3.4
+# 有域名就写域名；域名解析生效 + 备案通过后加 --https 申请证书：
+#   sudo bash deploy/deploy.sh hongchi.xyz
+#   sudo bash deploy/deploy.sh hongchi.xyz --https   ← 见第 3 节
 
 # 方式二：本地直接传（不想走 GitHub 时）
 scp -r D:/PythonProject/SoftwareEngineeringWebsite root@1.2.3.4:/root/liu-aochi
@@ -178,17 +181,87 @@ nginx -t && systemctl reload nginx
 
 ---
 
-## 3. HTTPS（可选但建议）
+## 3. 接入域名（hongchi.xyz）
 
-有域名后：
+### 3.1 第一步：加解析记录
+
+到域名服务商的「DNS 解析」里加两条 A 记录（TTL 600）：
+
+| 主机记录 | 记录类型 | 记录值 |
+|---|---|---|
+| `@` | A | 你的服务器公网 IP |
+| `www` | A | 你的服务器公网 IP |
+
+验证（在**自己电脑**上，不是服务器）：
 
 ```bash
-apt install -y certbot python3-certbot-nginx
-certbot --nginx -d your-domain.com        # 自动改 Nginx 配置并续期
+nslookup hongchi.xyz        # Windows
+dig +short hongchi.xyz      # macOS / Linux
 ```
 
-只有 IP、没有域名时可以用自签证书，但浏览器会报「不安全」，反而不如 HTTP。
-**面试演示用 HTTP + IP 完全可以**，只要不让人输入密码（本站密码是学习账号，风险可控）。
+返回的 IP 和服务器一致才继续。`deploy.sh` 会先做这一步预检并提示，解析没生效时
+脚本仍会装完站点，但证书申请一定失败——所以别跳过。
+
+### 3.2 ⚠️ 第二步：大陆服务器必须先 ICP 备案
+
+**这是 .xyz 用在大陆服务器上的硬门槛，跟证书无关。** 域名解析到大陆 IP 但没备案，
+阿里云/运营商会拦截 80/443，浏览器看到的是「该网站暂时无法访问」的拦截页，
+不是你的站点。备案没下来之前，`certbot` 也一定失败。
+
+`.xyz` 后缀本身是**可以**备案的——工信部 2016 年就批复了 XYZ.COM LLC，
+它在阿里云公示的「其他顶级域名」列表里（`.XYZ` 明文在列）。真正卡人的是下面三条，
+缺一条都过不了核验：
+
+| 要求 | 你要确认的 |
+|---|---|
+| 顶级域已获工信部批复 | `.xyz` ✅ 满足 |
+| **注册商是已批复的境内机构** | ⚠️ 关键：域名在 Namecheap / GoDaddy / Cloudflare / NameSilo 等**境外注册商**注册的，**不能直接备案**，必须先「域名转入」阿里云/腾讯云（转入含续费 1 年，几十块，需 5~7 天） |
+| 域名实名信息 = 备案主体 | 个人备案：持有人姓名+身份证号必须是你本人；实名改了要等 2~3 天同步到工信部库才能提交 |
+| 域名有效期 > 45 天 | 快到期先续费 |
+
+还有一条是服务器侧：**服务器购买时长要大于 3 个月**且绑定公网 IP。你现在这个
+「5 个月 30 天」的额度包满足，但如果是 1 个月的按量实例，备案会被退单。
+
+流程与耗时（阿里云 App，全程手机可办）：
+
+1. 域名转入 + 实名（若已在境内注册商则跳过）——5~7 天
+2. 阿里云「ICP 备案」提交：主体信息 → 网站信息 → 上传身份证/核验单 → 人脸核验（代替老式幕布）
+3. 阿里云初审 —— 1~2 个工作日
+4. 管局审核 —— 一般 1~3 周（河北管局）
+5. 通过后拿到 `冀ICP备XXXXXXXX号`，**把备案号放到页面底部**（管局抽查项，不挂会被要求整改）
+
+> 备案期间网站**不能关**，但也不能对外提供服务，所以阿里云会给一个临时访问方式。
+> 实务上：**备案期间用 IP 访问，备案通过后再切域名**，这样你能马上发给别人看。
+
+### 3.3 第三步：一条命令启用 HTTPS
+
+解析生效 + 备案通过后，在服务器上重跑：
+
+```bash
+cd /root/liu-aochi && git pull
+sudo bash deploy/deploy.sh hongchi.xyz --https
+```
+
+脚本会：把 `server_name` 改成 `hongchi.xyz www.hongchi.xyz` → 更新 `CORS_ORIGINS`
+→ `certbot --nginx` 签发证书 → 把 80 自动重定向到 443 → 启用 `certbot.timer`
+自动续期（90 天证书，到期前 30 天自动续，不用管）。
+
+域名解析了 www 但证书只想要裸域？脚本会自动检测 `www.hongchi.xyz` 是否也指向本机，
+没指向就只签裸域，避免 certbot 因「www 解析不到」整体失败。
+
+**关于 .xyz 的信誉**：个别邮箱/安全产品对新顶级域有偏见，可能把通知邮件判垃圾。
+不影响 HTTPS 和浏览器访问，但如果要做邮件发信，建议另配 `.com`。
+
+### 3.4 没有域名 / 不想等备案的替代路径
+
+| 做法 | 能不能马上用 | 代价 |
+|---|---|---|
+| 直接用 `http://公网IP/` | ✅ 立刻 | 链接难看、无法 HTTPS、IP 可能变 |
+| 服务器换**香港/境外**节点 | ✅ 立刻，域名免备案 | 大陆访问延迟多 30~80ms，且需重新部署 |
+| 大陆服务器 + 非标准端口（如 8080） | ⚠️ 通常可通 | 绕过拦截不合规，且链接要带端口 |
+
+**面试演示用 `http://IP/` 完全够**，只要不让人在里面输入真实密码（本站密码是学习账号）。
+真正要长期挂在简历上，再走备案 + 域名。
 
 ---
 
