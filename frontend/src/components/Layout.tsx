@@ -201,7 +201,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {!hideChrome && <IcpFooter />}
       </main>
 
-      {/* ===== 手机：底部三 Tab ===== */}
+      {/* ===== 手机：底部四 Tab（首页 / 引导式学习 / AI 导师 / 我的） ===== */}
       {!hideChrome && (
         <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-indigo-200">
           <div className="flex items-stretch">
