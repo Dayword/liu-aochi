@@ -85,6 +85,152 @@ CPU 一被抢，学生**明明正确的代码会被判「运行超时」**，而
 
 ---
 
+## 快速路径：只用公网 IP 上线（约 10 分钟，不碰域名）
+
+> 这条是给「现在就想要一个能发出去的链接」用的。**不需要域名、不需要备案**，
+> 纯 IP 访问不受 ICP 约束。等以后要长期挂简历再回头做第 3 节。
+> 全程只需一台服务器 + 你的笔记本。
+
+### 步骤 0：先确认两件事（30 秒）
+
+在你的笔记本浏览器里打开阿里云 ECS 控制台 → 这台实例 → 「安全组」：
+
+- 入方向放行 **22**（SSH）、**80**（网站）。`8001` 和 `3306` **不要放行**，
+  后端和数据库只应监听 127.0.0.1，走 Nginx 反代进来。
+- 记下公网 IP（本文示例用 `39.96.223.77`，换成你自己的）。
+
+### 步骤 1：连上服务器，拉代码
+
+```bash
+ssh root@39.96.223.77
+apt-get update && apt-get install -y git
+git clone https://github.com/Dayword/liu-aochi.git /root/liu-aochi
+```
+
+> 国内服务器拉 GitHub 经常超时。拉不动就在**你电脑上**用
+> `scp -r D:/PythonProject/SoftwareEngineeringWebsite root@39.96.223.77:/root/liu-aochi` 传上去。
+
+### 步骤 2：一条命令装完
+
+```bash
+cd /root/liu-aochi && sudo bash deploy/deploy.sh 39.96.223.77
+```
+
+约 5~8 分钟（大部分时间在装 `numpy/pandas` 和构建前端）。脚本会自动装 Nginx / MySQL /
+Python 依赖、建库建账号、生成随机密钥、**关闭直通登录**、配置 2GB swap、停掉预装 Docker。
+看到 `✅ 部署完成` 就行。
+
+### 步骤 3：验证（3 条命令，别跳过）
+
+```bash
+curl -s http://127.0.0.1:8001/api/health          # 后端活着
+curl -s http://127.0.0.1/api/health | head -c 300  # Nginx 反代通了
+systemctl is-active code-adventurer nginx mysql    # 三个都应是 active
+```
+
+第一条返回里重点看两个字段：
+
+```json
+{"status":"ok","env":"prod","guest_login":false,"code_run":true,"config_warnings":[]}
+```
+
+- `guest_login` 必须是 `false`（否则所有人共享同一账号）
+- `config_warnings` 必须是**空数组**（非空就是还有隐患，按提示改 `.env` 后
+  `systemctl restart code-adventurer`）
+
+然后浏览器打开 `http://39.96.223.77/`，应该看到**登录页**，不是首页。
+
+### 步骤 4：注册你的账号
+
+点「注册」→ 填用户名 + 密码（≥8 位）→ 自动跳到建角色页 → 填角色名、身份、方向
+→ 进首页。到此链接已经可以发给别人了。
+
+### 步骤 5（可选但强烈建议）：把本地真实进度搬上去
+
+服务器是**全新的空库**，你现在登录进去是个 Lv.1 新号。如果你想给面试官看真实进度
+（8 门 Python 已掌握、Lv.3、金币、面试记录），把本地库导过去：
+
+**① 在本机导出**（Windows，路径按你实际安装位置改）：
+
+```bash
+cd /d/PythonProject/SoftwareEngineeringWebsite
+"/d/MySQL/MySQL Server 8.0/bin/mysqldump" -uroot -proot \
+  --default-character-set=utf8mb4 --single-transaction --no-tablespaces \
+  --skip-add-locks --result-file=D:/ca_local.sql code_adventurer
+```
+
+> 用 `--result-file` 而不是 `> 文件`，Windows 下重定向容易把中文搞乱。
+
+**② 传到服务器**：
+
+```bash
+scp D:/ca_local.sql root@39.96.223.77:/root/
+```
+
+**③ 在服务器上导入**：
+
+```bash
+mysql --default-character-set=utf8mb4 code_adventurer < /root/ca_local.sql
+```
+
+> ⚠️ **`--default-character-set=utf8mb4` 不能省**。少了这一句，中文会被按本地编码
+> 解析，报 `ERROR at line N: Unknown command '\''`，而且只导入一半——实测踩过。
+> 导入是**覆盖式**的（含 `DROP TABLE`），所以要在别人注册之前做；做砸了就重跑
+> `deploy.sh` 会重建表结构，再导一次即可。
+
+**④ 清掉冒烟测试留下的账号**：本地库里有 50 多个 `tester1789…` / `grader…` 之类的
+测试账号，导上去排行榜会很脏。清到只剩你自己的两个：
+
+```bash
+mysql --default-character-set=utf8mb4 code_adventurer <<'SQL'
+SET FOREIGN_KEY_CHECKS=0;
+DELETE FROM users WHERE username NOT IN ('如梦令','demo');
+DELETE FROM characters WHERE user_id NOT IN (SELECT id FROM users);
+SET FOREIGN_KEY_CHECKS=1;
+SELECT id, username FROM users;
+SQL
+```
+
+执行完应该只剩 `demo` 和 `如梦令` 两行。
+
+**⑤ 改主账号密码**（最重要的一步）：
+
+「如梦令」的密码是早期直通登录随机生成的，**没人知道**，不改就登不进去，
+你会以为进度全丢了：
+
+```bash
+cd /opt/code-adventurer/backend
+/opt/code-adventurer/venv/bin/python reset_password.py --list
+/opt/code-adventurer/venv/bin/python reset_password.py 如梦令 你的新密码
+```
+
+然后回浏览器用 `如梦令` + 新密码登录，应该看到 Lv.3 / 282 金币 / 8 门已掌握。
+
+### 步骤 6：把链接发出去
+
+```
+http://39.96.223.77/
+```
+
+发给面试官时建议加一句「账号可直接注册，也可以用 demo / 演示」。**别把「如梦令」
+的密码写进简历或聊天里**——那是你的真实数据，别人登进去能改。
+
+### 这一步的常见故障
+
+| 现象 | 原因 | 怎么查 |
+|---|---|---|
+| 浏览器一直转圈 | 安全组没放行 80 | 控制台安全组；`ss -lntp \| grep :80` |
+| 502 Bad Gateway | 后端没起来 | `systemctl status code-adventurer` + `journalctl -u code-adventurer -n 50` |
+| 打开是登录页但登录报错 | 数据库没连上 | `tail -f /var/log/nginx/code-adventurer.error.log` |
+| 页面能开、注册后白屏 | 前端构建产物没同步 | `ls /var/www/code-adventurer/dist` |
+| 导入数据后中文变问号 | 少了 `--default-character-set=utf8mb4` | 重新导一次 |
+| 服务器重启后网站打不开 | 服务没设开机自启 | `systemctl is-enabled code-adventurer nginx mysql` |
+
+> 排 `502` 时注意：**本机 `curl 127.0.0.1:8001` 通、`curl 127.0.0.1` 不通**，说明问题在
+> Nginx 而不在后端，直接看 `nginx -t` 和 error.log。
+
+---
+
 ## 1. 一键部署（约 10 分钟）
 
 ### 1.1 本地准备好代码
