@@ -44,7 +44,7 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
       chart.dispose()
     }
   }, [subjects, scores])
-  return <div ref={ref} className="h-64 w-full" />
+  return <div ref={ref} className="h-48 md:h-56 w-full" />
 }
 
 export default function Profile() {
@@ -103,14 +103,14 @@ export default function Profile() {
   const expPct = Math.min(100, Math.round((character.exp / character.exp_to_next) * 100))
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-2xl font-bold text-indigo-700">📊 个人中心</h1>
+    <div className="space-y-3">
+      <h1 className="text-xl font-bold text-indigo-700">📊 个人中心</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 md:gap-3">
         {/* 角色卡 */}
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="game-panel p-6">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="game-panel p-3">
           <div className="flex items-center gap-4">
-            <div className="text-6xl">{character.identity === '求职中' ? '💼' : '🎓'}</div>
+            <div className="text-4xl">{character.identity === '求职中' ? '💼' : '🎓'}</div>
             <div>
               <div className="text-xl font-bold text-indigo-800">{character.name}</div>
               <div className="text-sm text-amber-600 mt-0.5">{character.class_name} · {character.title}</div>
@@ -145,14 +145,14 @@ export default function Profile() {
         </motion.div>
 
         {/* 能力雷达 */}
-        <div className="game-panel p-6">
+        <div className="game-panel p-3">
           <h3 className="font-semibold text-indigo-700 mb-2">🧠 能力雷达</h3>
           <RadarChart subjects={radar.subjects} scores={radar.scores} />
           <div className="text-center text-xs text-slate-500">按各学科答题正确率生成 · 多闯关提升</div>
         </div>
 
         {/* 学习数据 */}
-        <div className="game-panel p-6">
+        <div className="game-panel p-3">
           <h3 className="font-semibold text-indigo-700 mb-4">📈 学习数据</h3>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
@@ -191,23 +191,24 @@ export default function Profile() {
       </div>
 
       <Tabs
+        size="small"
         defaultActiveKey="achievements"
         items={[
           {
             key: 'achievements',
             label: `🏅 成就墙 (${unlockedCount}/${achievements.length})`,
             children: (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                 {achievements.map((a) => (
                   <div
                     key={a.code}
-                    className={`p-4 rounded-2xl border text-center ${
+                    className={`p-2.5 rounded-xl border text-center ${
                       a.unlocked
                         ? 'border-amber-300 bg-amber-50'
                         : 'border-slate-200 bg-slate-100 opacity-50 grayscale'
                     }`}
                   >
-                    <div className="text-3xl mb-1">{a.icon}</div>
+                    <div className="text-2xl mb-0.5">{a.icon}</div>
                     <div className="text-sm font-medium text-slate-700">{a.name}</div>
                     <div className="text-[10px] text-slate-500 mt-1">{a.description}</div>
                     {a.unlocked && (
@@ -229,7 +230,7 @@ export default function Profile() {
                   <div className="text-center text-slate-500 py-12">错题本是空的，答题错误会自动收录 🎉</div>
                 )}
                 {wrongBook.map((w) => (
-                  <div key={w.id} className={`game-panel p-4 ${w.resolved ? 'opacity-50' : ''}`}>
+                  <div key={w.id} className={`game-panel p-3 ${w.resolved ? 'opacity-50' : ''}`}>
                     <div className="flex items-center gap-2 text-xs mb-2">
                       <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">{w.subject}</span>
                       <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{DIFF_LABELS[w.difficulty - 1]}</span>
@@ -271,7 +272,7 @@ export default function Profile() {
                     { label: '方向榜', value: 'class' },
                   ]}
                 />
-                <div className="game-panel p-4">
+                <div className="game-panel p-2">
                   {leaderboard.map((e) => (
                     <div
                       key={e.rank}
@@ -304,7 +305,7 @@ export default function Profile() {
             children: (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {daily_tasks.map((t: DailyTask) => (
-                  <div key={t.code} className="game-panel p-4">
+                  <div key={t.code} className="game-panel p-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-700">{t.name}</span>
                       <span className="text-amber-600 text-xs">+{t.exp_reward} EXP +{t.coin_reward}🪙</span>

@@ -9,6 +9,8 @@ import LevelMap from './pages/LevelMap'
 import Quest from './pages/Quest'
 import Match3 from './pages/Match3'
 import Learn from './pages/Learn'
+import LearnPractice from './pages/LearnPractice'
+import Sandbox from './pages/Sandbox'
 import Chat from './pages/Chat'
 import Interview from './pages/Interview'
 import BugHunter from './pages/BugHunter'
@@ -63,6 +65,10 @@ function Routing() {
           >
             <Route path="/" element={<Home />} />
             <Route path="/learn" element={<Learn />} />
+            {/* 动手任务页：题目 + 编辑器 + 运行判定都在这一页 */}
+            <Route path="/learn/:code/practice" element={<LearnPractice />} />
+            {/* 独立代码沙箱页：AI 导师里的 🧪 图标跳到这里 */}
+            <Route path="/sandbox" element={<Sandbox />} />
             <Route path="/levels" element={<LevelMap />} />
             <Route path="/quest/:levelCode" element={<Quest />} />
             <Route path="/match3/:levelCode" element={<Match3 />} />

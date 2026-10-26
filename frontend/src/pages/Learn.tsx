@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { App, Button, Input, Spin } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { App, Button, Drawer, Input, Progress, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import { api } from '../api/client'
 import LessonVideo from '../components/LessonVideo'
 import ProjectField from '../components/ProjectField'
 import type {
-  LearnCheckResult,
   LearnPointBrief,
   LearnPointDetail,
   LearnQuizItem,
   LearnQuizResult,
 } from '../types'
+
+/** 记住当前停在那一课，从动手任务页返回时不会被「第一门没学完的课」抢走焦点 */
+const LEARN_CODE_KEY = 'ca_learn_code'
 
 /** 支持 `反引号` 和代码块的轻量 Markdown 渲染 */
 function Md({ children }: { children: string }) {
@@ -27,9 +30,7 @@ function Md({ children }: { children: string }) {
           className?.includes('language') ? (
             <code className={className}>{children}</code>
           ) : (
-            <code className="bg-indigo-50 text-indigo-700 px-1 py-0.5 rounded text-[0.9em]">
-              {children}
-            </code>
+            <code className="bg-indigo-50 text-indigo-700 px-1 py-0.5 rounded text-[0.9em]">{children}</code>
           ),
         strong: ({ children }) => <strong className="text-indigo-700">{children}</strong>,
         ul: ({ children }) => <ul className="list-disc pl-5 space-y-1 my-2">{children}</ul>,
@@ -92,7 +93,6 @@ function QuizBlock({
         {done && <span className="ml-auto shrink-0 text-emerald-600 text-xs">✓ 已掌握</span>}
       </div>
 
-      {/* 作答区 */}
       {q.type === 'choice' && (
         <div className="grid gap-1.5">
           {q.options.map((opt, i) => (
@@ -167,7 +167,6 @@ function QuizBlock({
         </Button>
       )}
 
-      {/* 判分结果 */}
       {result && (
         <div className="text-xs space-y-1.5 pt-1 border-t border-slate-200">
           {objective ? (
@@ -180,9 +179,7 @@ function QuizBlock({
                 <span>
                   要点覆盖 {Math.round((result.coverage || 0) * 100)}%
                   {result.missing.length > 0 && (
-                    <span className="text-amber-700 ml-2">
-                      还可以补充：{result.missing.join('、')}
-                    </span>
+                    <span className="text-amber-700 ml-2">还可以补充：{result.missing.join('、')}</span>
                   )}
                 </span>
               )}
@@ -220,14 +217,12 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 
 export default function Learn() {
   const { message } = App.useApp()
+  const navigate = useNavigate()
   const [points, setPoints] = useState<LearnPointBrief[]>([])
   const [subject, setSubject] = useState<string>('')
   const [code, setCode] = useState<string>('')
   const [detail, setDetail] = useState<LearnPointDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [userCode, setUserCode] = useState('')
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<LearnCheckResult | null>(null)
   const [hint, setHint] = useState('')
   const [hintLoading, setHintLoading] = useState(false)
   // 习题：当前作答 / 判分结果 / 正在提交哪一题
@@ -235,45 +230,12 @@ export default function Learn() {
   const [quizResults, setQuizResults] = useState<Record<number, LearnQuizResult>>({})
   const [submitting, setSubmitting] = useState<number | null>(null)
   const [completed, setCompleted] = useState(false)
+  // 进度抽屉：科目 → 阶段 两级展开，默认展开当前所在的那一支
+  const [navOpen, setNavOpen] = useState(false)
+  const [openSubject, setOpenSubject] = useState<string | null>(null)
+  const [openStages, setOpenStages] = useState<Record<string, boolean>>({})
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const alive = useRef(true)
-  const taRef = useRef<HTMLTextAreaElement>(null)
-  const gutterRef = useRef<HTMLPreElement>(null)
-
-  /**
-   * 自动缩进：新手最容易死在缩进上（Python 全靠缩进分块）。
-   * 回车继承上一行缩进，上一行以 `:` 结尾再多缩进一级；Tab 插入 4 个空格。
-   */
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const ta = e.currentTarget
-    if (e.key === 'Tab') {
-      e.preventDefault()
-      const s = ta.selectionStart
-      const end = ta.selectionEnd
-      const next = userCode.slice(0, s) + '    ' + userCode.slice(end)
-      setUserCode(next)
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = s + 4
-      })
-      return
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      const s = ta.selectionStart
-      const end = ta.selectionEnd
-      const lineStart = userCode.lastIndexOf('\n', s - 1) + 1
-      const line = userCode.slice(lineStart, s)
-      const indent = (line.match(/^[ \t]*/) || [''])[0]
-      const extra = line.trimEnd().endsWith(':') ? '    ' : ''
-      const insert = '\n' + indent + extra
-      const next = userCode.slice(0, s) + insert + userCode.slice(end)
-      setUserCode(next)
-      const pos = s + insert.length
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = pos
-        if (gutterRef.current) gutterRef.current.scrollTop = ta.scrollTop
-      })
-    }
-  }
 
   useEffect(() => {
     alive.current = true
@@ -282,17 +244,22 @@ export default function Learn() {
     }
   }, [])
 
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   const loadDetail = useCallback(
     async (target: string) => {
       setLoading(true)
       setCode(target)
-      setResult(null)
       setHint('')
+      sessionStorage.setItem(LEARN_CODE_KEY, target)
       try {
         const d = await api.get<LearnPointDetail>(`/api/learn/points/${target}`)
         if (!alive.current) return
         setDetail(d)
-        setUserCode(d.last_code || d.starter)
         setAnswers({})
         setQuizResults({})
         setCompleted(d.status === 'completed')
@@ -311,8 +278,13 @@ export default function Learn() {
       .then((list) => {
         if (!alive.current) return
         setPoints(list)
-        // 默认停在第一个还没掌握的知识点（科目之间互不阻塞）；全学完了就停在最后一个
-        const cur = list.find((p) => p.status !== 'completed') || list[list.length - 1]
+        // 优先回到上次停留的那一课（从动手任务页返回时会用到）；
+        // 否则停在第一个还没掌握的（科目之间互不阻塞），全学完了停最后一课。
+        const remembered = sessionStorage.getItem(LEARN_CODE_KEY)
+        const cur =
+          list.find((p) => p.code === remembered && p.status !== 'locked') ||
+          list.find((p) => p.status !== 'completed') ||
+          list[list.length - 1]
         if (cur) {
           setSubject(cur.subject)
           void loadDetail(cur.code)
@@ -324,6 +296,11 @@ export default function Learn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const refreshPoints = async () => {
+    const list = await api.get<LearnPointBrief[]>('/api/learn/points')
+    if (alive.current) setPoints(list)
+  }
+
   /** 切科目时自动跳到该科目第一个还没掌握的知识点 */
   const pickSubject = (s: string) => {
     if (s === subject) return
@@ -333,29 +310,11 @@ export default function Learn() {
     if (cur) void loadDetail(cur.code)
   }
 
-  const refreshPoints = async () => {
-    const list = await api.get<LearnPointBrief[]>('/api/learn/points')
-    if (alive.current) setPoints(list)
-  }
-
-  const run = async () => {
-    if (!detail) return
-    setRunning(true)
-    setHint('')
-    try {
-      const r = await api.post<LearnCheckResult>('/api/learn/check', {
-        code: detail.code,
-        user_code: userCode,
-      })
-      if (!alive.current) return
-      setResult(r)
-      setCompleted(r.lesson_completed)
-      if (r.passed) await refreshPoints()
-    } catch (e) {
-      if (alive.current) message.error((e as Error).message)
-    } finally {
-      if (alive.current) setRunning(false)
-    }
+  /** 打开抽屉时直接展开当前科目 + 当前阶段，省一次点击 */
+  const openNav = () => {
+    setOpenSubject(subject)
+    if (detail) setOpenStages((prev) => ({ ...prev, [`${subject}|${detail.stage}`]: true }))
+    setNavOpen(true)
   }
 
   const submitQuiz = async (q: LearnQuizItem) => {
@@ -393,11 +352,7 @@ export default function Learn() {
     if (!detail) return
     setHintLoading(true)
     try {
-      const r = await api.post<{ hint: string }>('/api/learn/hint', {
-        code: detail.code,
-        user_code: userCode,
-        reason: result?.reason || '',
-      })
+      const r = await api.post<{ hint: string }>('/api/learn/hint', { code: detail.code, reason: '' })
       if (alive.current) setHint(r.hint)
     } catch (e) {
       if (alive.current) message.error((e as Error).message)
@@ -406,22 +361,35 @@ export default function Learn() {
     }
   }
 
-  const subjects = [...new Set(points.map((p) => p.subject))]
+  const subjects = useMemo(() => [...new Set(points.map((p) => p.subject))], [points])
   const subjectPoints = points.filter((p) => p.subject === subject)
   const done = subjectPoints.filter((p) => p.status === 'completed').length
+  const totalDone = points.filter((p) => p.status === 'completed').length
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-indigo-700">📘 引导式学习</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          十二个科目独立解锁，互不阻塞。先看懂，再自己动手写 —— 写完点「运行判定」，
-          通过就解锁同一科目的下一课。
-        </p>
+    <div className="space-y-3">
+      {/* 标题行：进度收进抽屉，右上角一个入口 */}
+      <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-indigo-700 leading-tight">📘 引导式学习</h1>
+          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
+            十二个科目独立解锁，互不阻塞；写完点「运行判定」解锁下一课
+          </p>
+        </div>
+        <button
+          onClick={openNav}
+          className="ml-auto shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-indigo-300 bg-white text-[11px] text-indigo-700 active:bg-indigo-50"
+        >
+          <span>📚 进度</span>
+          <span className="text-indigo-500 font-medium">
+            {totalDone}/{points.length || '—'}
+          </span>
+          <span className="text-[9px] text-slate-400">▾</span>
+        </button>
       </div>
 
-      {/* 科目切换：手机端横滑一行，桌面端换行铺满 */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3 pb-0.5 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible">
+      {/* 科目快切：一行横滑，主力导航；完整目录在抽屉里 */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible">
         {subjects.map((s) => {
           const all = points.filter((p) => p.subject === s)
           const ok = all.filter((p) => p.status === 'completed').length
@@ -430,14 +398,14 @@ export default function Learn() {
             <button
               key={s}
               onClick={() => pickSubject(s)}
-              className={`px-3 py-1.5 rounded-xl border text-xs whitespace-nowrap shrink-0 transition-all ${
+              className={`px-2.5 py-1 rounded-full border text-[11px] whitespace-nowrap shrink-0 transition-all ${
                 active
                   ? 'border-indigo-400 bg-indigo-50 text-indigo-800 font-medium'
-                  : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700'
+                  : 'border-slate-200 bg-white text-slate-600'
               }`}
             >
               {s}
-              <span className={`ml-1.5 text-[10px] ${active ? 'text-indigo-500' : 'text-slate-400'}`}>
+              <span className={`ml-1 text-[10px] ${active ? 'text-indigo-500' : 'text-slate-400'}`}>
                 {ok}/{all.length}
               </span>
             </button>
@@ -445,53 +413,20 @@ export default function Learn() {
         })}
       </div>
 
-      {/* 进度：当前科目的知识点列表 */}
-      <div className="game-panel p-3">
-        <div className="flex items-center gap-2 flex-wrap mb-2">
-          <span className="text-xs text-slate-500">
-            {subject} 进度 {done}/{subjectPoints.length}
-          </span>
-          <span className="text-[11px] text-slate-500">
-            （本科目内按顺序解锁：上一课判定通过才会亮起下一课）
-          </span>
-        </div>
-        {/* 按科目内的分组展示，一科 8~10 课才找得到 */}
-        {[...new Set(subjectPoints.map((p) => p.stage))].map((stage) => (
-          <div
-            key={stage}
-            className="mb-2 flex flex-col gap-1 md:mb-1.5 md:flex-row md:items-start md:gap-2"
-          >
-            <span className="shrink-0 text-[10px] text-slate-500 md:w-[112px] md:pt-1.5 md:text-right">
-              {stage}
-            </span>
-            <div className="flex flex-1 flex-wrap items-center gap-1.5">
-              {subjectPoints
-                .filter((p) => p.stage === stage)
-                .map((p) => {
-                  const isCur = p.code === code
-                  const cls = isCur
-                    ? 'border-indigo-400 bg-indigo-100 text-indigo-800'
-                    : p.status === 'completed'
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-500'
-                      : p.status === 'unlocked'
-                        ? 'border-indigo-300 text-slate-600 hover:border-indigo-400'
-                        : 'border-slate-300 text-slate-400 cursor-not-allowed'
-                  return (
-                    <button
-                      key={p.code}
-                      disabled={p.status === 'locked'}
-                      onClick={() => void loadDetail(p.code)}
-                      className={`px-2 py-1 rounded-lg border text-[11px] transition-all ${cls}`}
-                      title={p.summary}
-                    >
-                      {p.status === 'completed' ? '✓ ' : p.status === 'locked' ? '🔒 ' : ''}
-                      {p.order_no}. {p.title}
-                    </button>
-                  )
-                })}
-            </div>
-          </div>
-        ))}
+      {/* 当前科目进度条：一行搞定，不再占一整块 */}
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[11px] text-slate-500 shrink-0">
+          {subject || '—'} {done}/{subjectPoints.length}
+        </span>
+        <Progress
+          percent={subjectPoints.length ? Math.round((done / subjectPoints.length) * 100) : 0}
+          size="small"
+          strokeColor="#6366f1"
+          trailColor="#e2e8f0"
+          showInfo={false}
+          className="flex-1"
+        />
+        <span className="text-[10px] text-slate-400 shrink-0">本科目上一课通过才解锁下一课</span>
       </div>
 
       {loading && (
@@ -501,269 +436,239 @@ export default function Learn() {
       )}
 
       {!loading && detail && (
-        <div
-          className={`grid grid-cols-1 gap-4 items-start ${
-            detail.has_task ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]' : ''
-          }`}
-        >
-          {/* 左侧：讲解 */}
-          <div className="game-panel p-4 md:p-5">
-            <div className="flex items-baseline gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-indigo-700">
-                {detail.subject} · 第 {detail.order_no} 课 · {detail.title}
-              </h2>
-              {detail.status === 'completed' && (
-                <span className="text-xs text-emerald-600">✓ 已掌握</span>
+        <div className="game-panel p-3 md:p-5">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h2 className="text-base md:text-lg font-bold text-indigo-700">
+              {detail.subject} · 第 {detail.order_no} 课 · {detail.title}
+            </h2>
+            {detail.status === 'completed' && <span className="text-xs text-emerald-600">✓ 已掌握</span>}
+          </div>
+          <p className="text-slate-500 text-[11px] mt-1">{detail.summary}</p>
+
+          {/* 讲解视频：分镜脚本由后端构建期生成，缺脚本时组件自己返回 null */}
+          {detail.video && detail.video.scenes.length > 0 && (
+            <LessonVideo video={detail.video} code={detail.code} />
+          )}
+
+          <Section icon="📖" title="定义">
+            <Md>{detail.definition}</Md>
+          </Section>
+
+          <Section icon="💡" title="通俗理解">
+            <Md>{detail.plain}</Md>
+          </Section>
+
+          <Section icon="💻" title="例子">
+            <pre className="bg-[#f4f6fa] border border-slate-200 p-3 rounded-lg overflow-x-auto text-xs leading-relaxed">
+              <code>{detail.example}</code>
+            </pre>
+            <div className="mt-1.5 text-xs text-slate-500">
+              运行结果：
+              <pre className="mt-1 text-emerald-600/90 whitespace-pre-wrap font-mono">
+                {detail.example_output}
+              </pre>
+            </div>
+          </Section>
+
+          <Section icon="⚠️" title="易错点">
+            <ul className="list-disc pl-5 space-y-1.5">
+              {detail.pitfalls.map((p, i) => (
+                <li key={i} className="text-slate-600 leading-relaxed">
+                  <Md>{p}</Md>
+                </li>
+              ))}
+            </ul>
+          </Section>
+
+          {/* 动手任务：题目本身搬进沙箱页了，这里只留入口 */}
+          {detail.has_task && (
+            <div className="mt-4">
+              <button
+                onClick={() => navigate(`/learn/${detail.code}/practice`)}
+                className="w-full flex items-center gap-3 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-3 text-left active:bg-emerald-100"
+              >
+                <span className="text-xl shrink-0">✍️</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-emerald-800">
+                    动手任务{detail.code_passed ? ' · 已通过' : ''}
+                  </span>
+                  <span className="block text-[11px] text-emerald-700/80 truncate">
+                    打开代码沙箱，题目、编写、运行判定都在一页里
+                  </span>
+                </span>
+                <span className="shrink-0 text-emerald-600 text-lg">›</span>
+              </button>
+              <div className="mt-1.5 px-1">
+                <Button size="small" type="link" loading={hintLoading} onClick={askHint} className="!px-0">
+                  💡 我卡住了，先给个提示
+                </Button>
+                {hint && (
+                  <div className="mt-1 rounded-lg border border-sky-300 bg-sky-50 p-2.5 text-xs text-sky-800 leading-relaxed">
+                    {hint}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {detail.quizzes.length > 0 && (
+            <Section
+              icon="🧩"
+              title={`练习题（${
+                detail.quizzes.filter((q) => q.type === 'choice' || q.type === 'judge' || q.type === 'blank')
+                  .length
+              } 道客观题 + ${
+                detail.quizzes.filter((q) => q.type === 'short' || q.type === 'applied').length
+              } 道主观题）`}
+            >
+              <div className="space-y-3 mt-1">
+                {detail.quizzes.map((q) => (
+                  <QuizBlock
+                    key={q.index}
+                    q={q}
+                    answer={answers[q.index]}
+                    result={quizResults[q.index]}
+                    submitting={submitting === q.index}
+                    done={quizDone(q)}
+                    onPick={(v) => setAnswers((prev) => ({ ...prev, [q.index]: v }))}
+                    onSubmit={() => void submitQuiz(q)}
+                  />
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {completed && (
+            <div className="mt-5 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-700 flex items-center gap-3 flex-wrap">
+              <span>🎉 这一课你已经掌握了</span>
+              {detail.next_code ? (
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => void loadDetail(detail.next_code as string)}
+                >
+                  进入下一个知识点 →
+                </Button>
+              ) : (
+                <span className="text-emerald-700/80">本科目已是最后一课</span>
               )}
             </div>
-            <p className="text-slate-500 text-xs mt-1">{detail.summary}</p>
+          )}
 
-            {/* 讲解视频：分镜脚本由后端构建期生成，缺脚本时组件自己返回 null */}
-            {detail.video && detail.video.scenes.length > 0 && (
-              <LessonVideo video={detail.video} code={detail.code} />
-            )}
-
-            <Section icon="📖" title="定义">
-              <Md>{detail.definition}</Md>
+          {/* 项目实战固定压在最底部：它是「拓展对照」，不该挡在讲解和练习中间 */}
+          {detail.project && (
+            <Section icon="🏗" title="项目实战（鸭先知 RAG）">
+              <ProjectField data={detail.project} />
             </Section>
-
-            <Section icon="💡" title="通俗理解">
-              <Md>{detail.plain}</Md>
-            </Section>
-
-            <Section icon="💻" title="例子">
-              <pre className="bg-[#f4f6fa] border border-slate-200 p-3 rounded-lg overflow-x-auto text-xs leading-relaxed">
-                <code>{detail.example}</code>
-              </pre>
-              <div className="mt-1.5 text-xs text-slate-500">
-                运行结果：
-                <pre className="mt-1 text-emerald-600/90 whitespace-pre-wrap font-mono">
-                  {detail.example_output}
-                </pre>
-              </div>
-            </Section>
-
-            {detail.project && (
-              <Section icon="🏗" title="项目实地（鸭先知 RAG）">
-                <ProjectField data={detail.project} />
-              </Section>
-            )}
-
-            <Section icon="⚠️" title="易错点">
-              <ul className="list-disc pl-5 space-y-1.5">
-                {detail.pitfalls.map((p, i) => (
-                  <li key={i} className="text-slate-600 leading-relaxed">
-                    <Md>{p}</Md>
-                  </li>
-                ))}
-              </ul>
-            </Section>
-
-            {detail.task && (
-              <Section icon="✍️" title="动手任务">
-                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
-                  <Md>{detail.task}</Md>
-                </div>
-              </Section>
-            )}
-
-            {detail.quizzes.length > 0 && (
-              <Section
-                icon="🧩"
-                title={`练习题（${
-                  detail.quizzes.filter(
-                    (q) => q.type === 'choice' || q.type === 'judge' || q.type === 'blank',
-                  ).length
-                } 道客观题 + ${
-                  detail.quizzes.filter((q) => q.type === 'short' || q.type === 'applied').length
-                } 道主观题）`}
-              >
-                <div className="space-y-3 mt-1">
-                  {detail.quizzes.map((q) => (
-                    <QuizBlock
-                      key={q.index}
-                      q={q}
-                      answer={answers[q.index]}
-                      result={quizResults[q.index]}
-                      submitting={submitting === q.index}
-                      done={quizDone(q)}
-                      onPick={(v) => setAnswers((prev) => ({ ...prev, [q.index]: v }))}
-                      onSubmit={() => void submitQuiz(q)}
-                    />
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {completed && (
-              <div className="mt-5 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-700 flex items-center gap-3 flex-wrap">
-                <span>🎉 这一课你已经掌握了</span>
-                {detail.next_code ? (
-                  <Button size="small" type="primary" onClick={() => void loadDetail(detail.next_code as string)}>
-                    进入下一个知识点 →
-                  </Button>
-                ) : (
-                  <span className="text-emerald-700/80">本科目已是最后一课</span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 右侧：写代码 + 运行判定（没有动手题的知识点则不显示这一栏） */}
-          {detail.has_task && (
-          <div className="game-panel p-4 lg:sticky lg:top-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-emerald-700">
-                {detail.runner === 'sql' ? '⌨️ 自己写 SQL' : '⌨️ 自己写'}
-              </span>
-              <span className="text-[10px] text-slate-500">
-                {detail.runner === 'sql' ? 'SQLite · 只读查询' : 'Python · 5s 超时'}
-              </span>
-              <Button
-                size="small"
-                type="primary"
-                className="ml-auto"
-                loading={running}
-                onClick={run}
-                disabled={!userCode.trim()}
-              >
-                ▶ 运行判定
-              </Button>
-            </div>
-
-            {detail.setup && (
-              <div>
-                <div className="text-[11px] text-slate-500 mb-1">
-                  {detail.runner === 'sql'
-                    ? '题目已给好的表结构与数据（不用改，查询时直接用）'
-                    : '题目已给好的代码（不用改）'}
-                </div>
-                <pre className="bg-[#f4f6fa] border border-slate-200 rounded-lg p-2 text-xs text-slate-500 font-mono overflow-x-auto">
-                  <code>{detail.setup}</code>
-                </pre>
-              </div>
-            )}
-
-            <div className="flex rounded-lg border border-indigo-300 bg-[#f4f6fa] focus-within:border-indigo-400 overflow-hidden">
-              {/* 行号：报错信息里的「第几行」能直接对上 */}
-              <pre
-                ref={gutterRef}
-                aria-hidden
-                className="select-none shrink-0 text-right pl-2 pr-1.5 py-3 bg-slate-100 text-[13px] leading-[22px] font-mono text-slate-400 overflow-hidden"
-              >
-                {userCode.split('\n').map((_, i) => i + 1).join('\n')}
-              </pre>
-              <textarea
-                ref={taRef}
-                value={userCode}
-                onChange={(e) => setUserCode(e.target.value)}
-                onKeyDown={onKeyDown}
-                onScroll={(e) => {
-                  if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop
-                }}
-                spellCheck={false}
-                rows={11}
-                className="flex-1 min-w-0 bg-transparent px-2 py-3 text-[13px] leading-[22px] font-mono text-slate-800 outline-none resize-none"
-                placeholder={
-                  detail.runner === 'sql'
-                    ? '在这里写你的 SQL…（语句结尾记得加分号 ;）'
-                    : '在这里写你的代码…（回车会自动缩进，Tab 缩进 4 格）'
-                }
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Button size="small" loading={hintLoading} onClick={askHint} className="flex-1">
-                💡 我卡住了
-              </Button>
-              <Button
-                size="small"
-                className="flex-1"
-                onClick={() => setUserCode(detail.starter)}
-                disabled={!detail.starter}
-              >
-                ↺ 回到初始
-              </Button>
-            </div>
-
-            {hint && (
-              <div className="rounded-lg border border-sky-300 bg-sky-50 p-3 text-xs text-sky-800 leading-relaxed">
-                <span className="text-sky-700">💡 提示：</span>
-                {hint}
-              </div>
-            )}
-
-            {/* 判定结果 */}
-            {result && (
-              <div
-                className={`rounded-lg border p-3 text-xs space-y-2 ${
-                  result.passed
-                    ? 'border-emerald-300 bg-emerald-50'
-                    : 'border-rose-300 bg-rose-50'
-                }`}
-              >
-                <div className={result.passed ? 'text-emerald-700' : 'text-rose-700'}>
-                  {result.passed
-                    ? detail.runner === 'sql'
-                      ? '✅ 结果完全正确 —— 这个知识点你掌握了！'
-                      : `✅ 判定通过（${result.solved}/${result.total} 组用例全对）—— 这个知识点你掌握了！`
-                    : `❌ 还没通过${
-                        detail.runner === 'sql' || !result.total
-                          ? ''
-                          : `（通过 ${result.solved}/${result.total} 组）`
-                      }`}
-                </div>
-
-                {!result.passed && result.reason && (
-                  <div className="text-rose-800 whitespace-pre-wrap leading-relaxed">
-                    {result.reason}
-                  </div>
-                )}
-
-                {result.output && (
-                  <div>
-                    <div className="text-slate-500 mb-1">你的输出：</div>
-                    <pre className="bg-[#f4f6fa] rounded p-2 text-slate-700 font-mono whitespace-pre-wrap">
-                      {result.output}
-                    </pre>
-                  </div>
-                )}
-
-                {result.error && (
-                  <div>
-                    <div className="text-slate-500 mb-1">报错信息：</div>
-                    <pre className="bg-[#f4f6fa] rounded p-2 text-rose-600 font-mono whitespace-pre-wrap max-h-40 overflow-auto">
-                      {result.error}
-                    </pre>
-                  </div>
-                )}
-
-                {result.passed && !result.lesson_completed && (
-                  <div className="text-amber-700 text-center">
-                    {detail.runner === 'sql' ? 'SQL 这关过了' : '代码这关过了'} 👍
-                    不过这课还有练习题要答，答完就解锁下一个。
-                  </div>
-                )}
-                {result.lesson_completed && result.next_code && (
-                  <Button
-                    type="primary"
-                    block
-                    onClick={() => void loadDetail(result.next_code as string)}
-                  >
-                    进入下一个知识点 →
-                  </Button>
-                )}
-                {result.lesson_completed && !result.next_code && (
-                  <div className="text-emerald-700 text-center">
-                    🎉 {detail.subject} 这个科目学完了，去换个科目挑战吧。
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           )}
         </div>
       )}
+
+      {/* ===== 进度抽屉：科目 → 阶段 → 课时，逐层展开 ===== */}
+      <Drawer
+        title={
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-medium text-indigo-700">学习进度</span>
+            <span className="text-[11px] text-slate-500">
+              {totalDone}/{points.length} 课已掌握
+            </span>
+          </div>
+        }
+        placement={isMobile ? 'bottom' : 'right'}
+        height={isMobile ? '78vh' : undefined}
+        width={360}
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
+        styles={{ body: { padding: '8px 12px 12px' } }}
+      >
+        <div>
+          {subjects.map((s) => {
+            const all = points.filter((p) => p.subject === s)
+            const ok = all.filter((p) => p.status === 'completed').length
+            const stages = [...new Set(all.map((p) => p.stage))]
+            const open = openSubject === s
+            return (
+              <div key={s} className="border-b border-slate-100 last:border-0">
+                {/* 第一层：科目 */}
+                <button
+                  onClick={() => setOpenSubject(open ? null : s)}
+                  className="w-full flex items-center gap-2 py-2.5 text-left"
+                >
+                  <span className={`text-sm flex-1 truncate ${s === subject ? 'text-indigo-700 font-medium' : 'text-slate-700'}`}>
+                    {s}
+                  </span>
+                  <span className="text-[11px] text-slate-500 shrink-0">
+                    {ok}/{all.length}
+                  </span>
+                  <span className={`text-[10px] text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+                    ▾
+                  </span>
+                </button>
+
+                {open && (
+                  <div className="pb-2 space-y-1.5">
+                    {stages.map((stage) => {
+                      const items = all.filter((p) => p.stage === stage)
+                      const key = `${s}|${stage}`
+                      const sOpen = !!openStages[key]
+                      const sOk = items.filter((p) => p.status === 'completed').length
+                      return (
+                        <div key={stage} className="rounded-lg border border-slate-200 overflow-hidden">
+                          {/* 第二层：阶段 */}
+                          <button
+                            onClick={() => setOpenStages((prev) => ({ ...prev, [key]: !sOpen }))}
+                            className="w-full flex items-center gap-2 px-2 py-1.5 bg-slate-50 text-left"
+                          >
+                            <span className="text-[11px] text-slate-600 flex-1 truncate">{stage}</span>
+                            <span className="text-[10px] text-slate-400 shrink-0">
+                              {sOk}/{items.length}
+                            </span>
+                            <span className="text-[9px] text-slate-400 shrink-0">{sOpen ? '▲' : '▼'}</span>
+                          </button>
+
+                          {/* 第三层：课时 */}
+                          {sOpen && (
+                            <div className="p-1.5 space-y-0.5">
+                              {items.map((p) => {
+                                const isCur = p.code === code
+                                const locked = p.status === 'locked'
+                                return (
+                                  <button
+                                    key={p.code}
+                                    disabled={locked}
+                                    onClick={() => {
+                                      void loadDetail(p.code)
+                                      setNavOpen(false)
+                                    }}
+                                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] text-left transition-colors ${
+                                      isCur
+                                        ? 'bg-indigo-100 text-indigo-800 font-medium'
+                                        : locked
+                                          ? 'text-slate-300 cursor-not-allowed'
+                                          : 'text-slate-600 active:bg-slate-100'
+                                    }`}
+                                  >
+                                    <span className="shrink-0">
+                                      {p.status === 'completed' ? '✓' : locked ? '🔒' : '○'}
+                                    </span>
+                                    <span className="flex-1 truncate">
+                                      {p.order_no}. {p.title}
+                                    </span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </Drawer>
     </div>
   )
 }

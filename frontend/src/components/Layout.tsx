@@ -39,7 +39,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     navigate('/login', { replace: true })
   }
 
-  const isQuest = location.pathname.startsWith('/quest')
+  /**
+   * 「沉浸页」：这些页面要吃满整屏、自己带返回按钮，所以不叠顶部导航和页脚。
+   * - /quest/:code        闯关答题
+   * - /sandbox            独立代码沙箱
+   * - /learn/:code/practice  动手任务（题目 + 编辑器 + 结果分屏）
+   */
+  const isFullScreen =
+    location.pathname.startsWith('/quest') ||
+    location.pathname.startsWith('/sandbox') ||
+    /^\/learn\/[^/]+\/practice$/.test(location.pathname)
+  const hideChrome = isFullScreen
 
   // 手机端导航是横向滚动的：切页时把当前项滚到可见位置，并给右侧留个「还有更多」的渐隐提示
   const navRef = useRef<HTMLElement | null>(null)
@@ -69,7 +79,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen md:flex">
       {/* ===== 手机 / 平板竖屏：顶部导航（品牌条 + 可横滑的导航胶囊） ===== */}
-      {!isQuest && (
+      {!hideChrome && (
         <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-indigo-200">
           <div className="flex items-center gap-2 px-3 h-12">
             <span className="text-xl leading-none">⚔️</span>
@@ -126,7 +136,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ===== 桌面：左侧固定导航 ===== */}
-      {!isQuest && (
+      {!hideChrome && (
         <aside className="hidden md:flex w-60 shrink-0 border-r border-indigo-200 bg-[#ffffff]/80 backdrop-blur flex-col sticky top-0 h-screen z-20">
           <div className="px-5 py-4 flex items-center gap-2">
             <span className="text-3xl">⚔️</span>
@@ -193,11 +203,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className={isQuest ? '' : 'px-3 py-4 md:p-8 max-w-6xl mx-auto'}
+          className={isFullScreen ? '' : 'px-3 py-4 md:p-8 max-w-6xl mx-auto'}
         >
           {children}
         </motion.div>
-        <IcpFooter />
+        {!hideChrome && <IcpFooter />}
       </main>
 
       {offline && (

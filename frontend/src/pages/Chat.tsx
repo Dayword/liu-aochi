@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { App, Button, Input, Select } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { Button, Input, Select } from 'antd'
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import { api, getToken } from '../api/client'
 import { useAuth } from '../store/auth'
-import type { CodeRunResult, QuizItem } from '../types'
+import type { QuizItem } from '../types'
 
 interface Msg {
   id: string
@@ -30,16 +31,14 @@ function extractCode(children: React.ReactNode): { text: string; lang: string } 
   const props = (node as unknown as { props?: { className?: string; children?: unknown } } | null)
     ?.props
   const raw = props?.children
-  const text = Array.isArray(raw)
-    ? raw.map(String).join('')
-    : String(raw ?? '')
+  const text = Array.isArray(raw) ? raw.map(String).join('') : String(raw ?? '')
   const lang = props?.className?.match(/language-(\w+)/)?.[1]?.toLowerCase() ?? ''
   return { text: text.replace(/\n+$/, ''), lang }
 }
 
 export default function Chat() {
-  const { message } = App.useApp()
   const { refreshCharacter } = useAuth()
+  const navigate = useNavigate()
   const [mentors, setMentors] = useState<string[]>(['老架构师', '大厂面试官', '学霸学长'])
   const [mentor, setMentor] = useState('老架构师')
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -47,10 +46,6 @@ export default function Chat() {
   const [sessionId, setSessionId] = useState<number | null>(null)
   const [sending, setSending] = useState(false)
   const [summary, setSummary] = useState('')
-  // 右侧代码沙箱
-  const [sandboxCode, setSandboxCode] = useState('')
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<CodeRunResult | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const seqRef = useRef(0)
 
@@ -66,7 +61,9 @@ export default function Chat() {
           setMentor(s.mentor)
           setSessionId(s.id)
           api
-            .get<{ messages: { role: 'user' | 'assistant'; content: string }[] }>(`/api/chat/history/${s.id}`)
+            .get<{ messages: { role: 'user' | 'assistant'; content: string }[] }>(
+              `/api/chat/history/${s.id}`,
+            )
             .then((d) => setMsgs(d.messages.map((m) => ({ ...m, id: nextId() }))))
             .catch(() => undefined)
         }
@@ -183,49 +180,43 @@ export default function Chat() {
     setMsgs((list) => list.map((m, i) => (i === msgIndex ? { ...m, thinkOpen: !m.thinkOpen } : m)))
   }
 
-  /** 在沙箱里执行代码，结果展示在右侧面板 */
-  const runCode = async (code: string) => {
-    if (!code.trim()) return
-    setRunning(true)
-    setResult(null)
-    try {
-      setResult(await api.post<CodeRunResult>('/api/code/run', { language: 'python', code }))
-    } catch (e) {
-      message.error((e as Error).message)
-    } finally {
-      setRunning(false)
-    }
-  }
-
-  /** 点击代码块上的「运行」：代码载入右侧面板并立即执行 */
-  const runFromBlock = (code: string) => {
-    setSandboxCode(code)
-    void runCode(code)
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-indigo-700">💬 AI 导师</h1>
-          <p className="text-slate-500 text-sm mt-1">随时召唤导师：概念讲解、代码答疑、学习路径、求职咨询</p>
+    // 手机上整页吃满可视高度，输入行才会真正贴在底部；桌面端恢复自然流式布局
+    <div className="flex flex-col gap-3 h-[calc(100dvh-120px)] md:h-auto">
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-indigo-700 leading-tight">💬 AI 导师</h1>
+          <p className="text-[11px] text-slate-500 mt-0.5 hidden sm:block">
+            概念讲解 / 代码答疑 / 学习路径 / 求职咨询
+          </p>
         </div>
-        <Select
-          value={mentor}
-          onChange={(v) => {
-            setMentor(v)
-            setSessionId(null)
-            setMsgs([])
-            setSummary('')
-          }}
-          options={mentors.map((m) => ({ value: m, label: m }))}
-          style={{ width: 180 }}
-        />
+        <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {/* 沙箱不再是右栏，一个图标跳整页 */}
+          <button
+            onClick={() => navigate('/sandbox')}
+            title="打开代码沙箱"
+            aria-label="打开代码沙箱"
+            className="w-9 h-9 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 flex items-center justify-center active:bg-emerald-100 text-base"
+          >
+            🧪
+          </button>
+          <Select
+            value={mentor}
+            onChange={(v) => {
+              setMentor(v)
+              setSessionId(null)
+              setMsgs([])
+              setSummary('')
+            }}
+            options={mentors.map((m) => ({ value: m, label: m }))}
+            style={{ width: 118 }}
+            size="small"
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* 对话窗口 */}
-        <div className="game-panel p-4 h-[48vh] min-h-[320px] overflow-y-auto flex flex-col gap-3 md:h-[56vh]">
+      {/* 对话窗口：占满整宽（沙箱搬走之后没必要再留 360px 侧栏） */}
+      <div className="game-panel p-3 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 md:flex-none md:h-[64vh]">
         {msgs.length === 0 && (
           <div className="m-auto text-center text-slate-500">
             <div className="text-5xl mb-3 animate-float">🧙</div>
@@ -238,7 +229,7 @@ export default function Chat() {
             key={m.id}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+            className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
               m.role === 'user'
                 ? 'self-end bg-indigo-100 border border-indigo-300 text-indigo-800'
                 : 'self-start bg-slate-50 border border-slate-200 text-slate-700'
@@ -248,15 +239,10 @@ export default function Chat() {
             {m.role === 'assistant' && (m.reasoning || m.streaming) && (
               <div
                 className={`mb-2 rounded-xl border text-xs ${
-                  m.streaming && !m.content
-                    ? 'border-amber-300 bg-amber-50'
-                    : 'border-slate-200 bg-slate-50'
+                  m.streaming && !m.content ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'
                 }`}
               >
-                <button
-                  onClick={() => toggleThink(i)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-left"
-                >
+                <button onClick={() => toggleThink(i)} className="w-full flex items-center gap-2 px-3 py-2 text-left">
                   <span className={m.streaming && !m.content ? 'animate-pulse' : ''}>
                     {m.streaming && !m.content ? '🧠 深度思考中…' : '🧠 深度思考过程'}
                   </span>
@@ -285,7 +271,7 @@ export default function Chat() {
                             <span className="text-[10px] text-slate-500">{lang || 'code'}</span>
                             {runnable && !m.streaming && (
                               <button
-                                onClick={() => runFromBlock(text)}
+                                onClick={() => navigate('/sandbox', { state: { code: text } })}
                                 className="ml-auto text-[10px] px-2 py-0.5 rounded border border-emerald-300 text-emerald-600 hover:bg-emerald-50 transition-colors"
                               >
                                 ▶ 运行
@@ -384,89 +370,43 @@ export default function Chat() {
             )}
           </motion.div>
         ))}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* 右侧：代码沙箱，运行结果在这里预览 */}
-        <div className="game-panel p-3 h-[56vh] flex flex-col gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-emerald-700">🧪 代码沙箱</span>
-            <span className="text-[10px] text-slate-500">仅 Python · 独立进程 · 5s 超时</span>
-            <Button
-              size="small"
-              type="primary"
-              loading={running}
-              disabled={!sandboxCode.trim()}
-              onClick={() => runCode(sandboxCode)}
-              className="ml-auto"
-            >
-              ▶ 运行
-            </Button>
-          </div>
-
-          <Input.TextArea
-            value={sandboxCode}
-            onChange={(e) => setSandboxCode(e.target.value)}
-            placeholder="点击对话里代码块右上角的「▶ 运行」，代码会自动加载到这里；也可以直接粘贴、修改后再运行。"
-            autoSize={{ minRows: 5, maxRows: 10 }}
-            className="font-mono text-xs"
-          />
-
-          <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200 bg-[#f4f6fa] p-2 text-xs">
-            {running && <div className="text-amber-600 animate-pulse">⏳ 正在沙箱中运行…</div>}
-            {!running && !result && (
-              <div className="h-full flex items-center justify-center text-center px-3 text-slate-500">
-                运行结果会显示在这里
-              </div>
-            )}
-            {!running && result && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={result.exit_code === 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                    {result.exit_code === 0 ? '✅ 运行成功' : `❌ 退出码 ${result.exit_code}`}
-                  </span>
-                  <span className="text-slate-500">耗时 {result.time_ms} ms</span>
-                </div>
-                {result.stdout && (
-                  <pre className="whitespace-pre-wrap font-mono text-slate-800">{result.stdout}</pre>
-                )}
-                {!result.stdout && result.exit_code === 0 && (
-                  <div className="text-amber-700/90 leading-relaxed">
-                    代码执行完毕但没有输出。定义好的函数需要被调用才会打印结果 ——
-                    试试在末尾加一行 <code className="text-amber-600">print(...)</code>
-                  </div>
-                )}
-                {result.stderr && (
-                  <pre className="whitespace-pre-wrap font-mono text-rose-600">{result.stderr}</pre>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        <div ref={bottomRef} />
       </div>
 
-      {/* 快捷指令 */}
-      <div className="flex gap-2 flex-wrap">
-        {QUICK_COMMANDS.map((c) => (
-          <button
-            key={c}
-            onClick={() => send(c)}
-            disabled={sending}
-            className="px-3 py-1.5 rounded-full text-xs border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
-          >
-            {c}
-          </button>
-        ))}
-      </div>
+      {summary && (
+        <div className="game-panel p-3 text-xs text-slate-600 shrink-0">
+          <span className="text-indigo-600 font-medium">📝 本次对话知识点：</span>
+          {summary}
+        </div>
+      )}
 
-      {/* 输入区：手机端吸底，滚动看历史消息时也能直接打字 */}
-      <div className="sticky bottom-0 z-20 -mx-3 flex gap-2 bg-[#f6f7fb]/95 px-3 pb-2 pt-2 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+      {/*
+        输入区：快捷指令 + 输入框 + 发送，全部压在**一行**里。
+        手机上快捷指令横向可滑（右侧渐隐提示还有更多），不再单独占一整行把输入框挤下去。
+      */}
+      <div className="shrink-0 flex items-center gap-1.5 pb-1">
+        <div className="relative shrink-0 w-[40vw] max-w-[230px] md:w-auto md:max-w-none">
+          <div className="flex gap-1 overflow-x-auto no-scrollbar pr-6 md:pr-0">
+            {QUICK_COMMANDS.map((c) => (
+              <button
+                key={c}
+                onClick={() => send(c)}
+                disabled={sending}
+                className="px-2 py-1.5 rounded-full text-[10px] whitespace-nowrap shrink-0 border border-indigo-300 text-indigo-600 active:bg-indigo-50 disabled:opacity-50"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[#f6f7fb] via-[#f6f7fb]/85 to-transparent md:hidden" />
+        </div>
 
         <Input.TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="向导师提问，例如：讲讲 Python 的 GIL / 帮我规划 Python 后端学习路径"
-          autoSize={{ minRows: 1, maxRows: 4 }}
+          placeholder="向导师提问…"
+          autoSize={{ minRows: 1, maxRows: 3 }}
+          className="flex-1 min-w-0"
           onPressEnter={(e) => {
             if (!e.shiftKey) {
               e.preventDefault()
@@ -474,17 +414,10 @@ export default function Chat() {
             }
           }}
         />
-        <Button type="primary" size="large" loading={sending} onClick={() => send()} className="glow-btn px-6">
+        <Button type="primary" loading={sending} onClick={() => send()} className="glow-btn shrink-0 px-3">
           发送
         </Button>
       </div>
-
-      {summary && (
-        <div className="game-panel p-4 text-sm text-slate-600">
-          <span className="text-indigo-600 font-medium">📝 本次对话知识点：</span>
-          {summary}
-        </div>
-      )}
     </div>
   )
 }
