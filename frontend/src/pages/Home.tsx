@@ -101,7 +101,7 @@ export default function Home() {
 
   const subtitle = user?.student_id
     ? `学号 ${user.student_id} · ${user.grade} 级 · ${user.class_code} 班`
-    : character?.class_name || '软件工程 · 游戏化学习'
+    : character?.identity || '软件工程 · 游戏化学习'
 
   return (
     <div className="space-y-3">

@@ -57,11 +57,10 @@ def main():
     print('1b me:', s, me.get('student_id'), me.get('real_name'),
           'grade', me.get('grade'), 'onboarded', me.get('onboarding_done'))
 
-    s, qs = req('GET', '/api/user/onboard-questions', token=token)
-    s, d = req('POST', '/api/user/onboard',
-               {'name': REAL_NAME, 'identity': '求职中', 'class_key': 'backend',
-                'answers': [-1] * len(qs)}, token)
-    print('2 onboard:', s, d.get('class_name'), 'Lv', d.get('level'), 'title', d.get('title'))
+    # 新手引导已下线：注册完角色就存在，直接查角色而不是做题
+    s, d = req('GET', '/api/user/character', token=token)
+    print('2 character:', s, d.get('name'), 'Lv', d.get('level'), 'title', d.get('title'),
+          'onboarded', d.get('onboarding_done'))
 
     s, d = req('GET', '/api/levels/map', token=token)
     print('3 level map:', s, 'levels:', len(d['levels']), 'scenes:', len(d['scenes']),

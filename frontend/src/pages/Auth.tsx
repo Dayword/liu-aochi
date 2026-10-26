@@ -74,13 +74,10 @@ export default function Auth() {
         : { student_id: sid, real_name: realName.trim(), password, confirm_password: confirm }
       const r = await api.post<{ access_token: string }>(path, body)
       setToken(r.access_token)
-      const me = await refreshMe()
-      if (!me.onboarding_done) {
-        navigate('/welcome', { replace: true })
-      } else {
-        const from = (location.state as { from?: string } | null)?.from
-        navigate(from && from !== '/login' ? from : '/', { replace: true })
-      }
+      await refreshMe()
+      // 新手引导已下线：注册/登录后直接进首页（或回到原本想去的页面）
+      const from = (location.state as { from?: string } | null)?.from
+      navigate(from && from !== '/login' ? from : '/', { replace: true })
     } catch (e) {
       message.error((e as Error).message || '操作失败')
     } finally {

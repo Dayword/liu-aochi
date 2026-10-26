@@ -204,7 +204,7 @@ export default function Profile() {
               {student?.grade && ` · ${student.grade} 级 · 班级 ${student.class_code}`}
             </div>
             <div className="text-[11px] text-slate-400 truncate">
-              {character.class_name} · {character.identity}
+              {character.identity}
               {student?.seat_no && ` · ${student.seat_no} 号`}
               {student?.nickname && student.nickname !== realName && ` · @${student.nickname}`}
             </div>

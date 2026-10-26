@@ -163,10 +163,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 {user?.real_name || character.name}
               </div>
               <div className="text-[11px] text-slate-500 truncate">
-                {user?.student_id ? `学号 ${user.student_id}` : character.class_name}
+                {user?.student_id ? `学号 ${user.student_id}` : character.identity}
               </div>
               <div className="text-[11px] text-amber-600 mt-0.5">
-                {character.class_name} · Lv.{character.level} {character.title}
+                Lv.{character.level} {character.title}
               </div>
               <Progress
                 className="mt-1"

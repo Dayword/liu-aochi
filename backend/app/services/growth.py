@@ -29,6 +29,35 @@ def class_info(key: str) -> dict:
     return {"key": key, **CLASSES.get(key, CLASSES["backend"])}
 
 
+def ensure_character(db: Session, user: User) -> Character:
+    """取角色；没有就补一个默认角色。
+
+    2026-10-26 起新手引导（选职业方向 + 3 道能力初测）整体下线，
+    注册成功即视为引导完成，登录后直接进首页。这里给存量账号兜底：
+    老账号只要发过任何一次请求，就会补上角色，不会再被卡在 /welcome。
+    """
+    if user.character:
+        # 老账号可能停在「引导未完成」状态（引导已下线），直接放行
+        if not user.character.onboarding_done:
+            user.character.onboarding_done = True
+            db.commit()
+        return user.character
+    char = Character(
+        user_id=user.id,
+        name=(user.real_name or user.nickname or "冒险者")[:64],
+        identity="在校学生",
+        # 方向已不可选，统一用默认值；面试等模块仍按它取题库
+        class_key="backend",
+        class_name=CLASSES["backend"]["name"],
+        onboarding_done=True,
+    )
+    db.add(char)
+    db.commit()
+    db.refresh(user)
+    unlock_levels(db, user)
+    return user.character
+
+
 def title_of(level: int) -> str:
     t = TITLES[0][1]
     for lv, name in TITLES:

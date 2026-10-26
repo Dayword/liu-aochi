@@ -4,9 +4,9 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import (Achievement, Character, DailyTask, LearnProgress, Level,
-                      Question, User, UserAchievement, UserDailyTask,
+                      User, UserAchievement, UserDailyTask,
                       UserLevelProgress, WrongAnswer)
-from ..schemas import (CharacterOut, ClassInfo, LevelOut, OnboardIn, ProfileOut,
+from ..schemas import (CharacterOut, ClassInfo, LevelOut, ProfileOut,
                        ProfileUpdateIn, RadarOut, STUDENT_ID_RE)
 from ..security import get_current_user
 from ..services import growth
@@ -37,61 +37,14 @@ def _char_out(char: Character) -> CharacterOut:
 
 
 @router.get("/character", response_model=CharacterOut)
-def character(user: User = Depends(get_current_user)):
-    if not user.character:
-        raise HTTPException(400, "尚未创建角色，请先完成新手引导")
-    return _char_out(user.character)
-
-
-@router.get("/onboard-questions")
-def onboard_questions(db: Session = Depends(get_db)):
-    """3 道入门测试题（新手引导用，答对 2 道初始 2 级）。"""
-    qs = db.query(Question).filter(Question.type == "choice",
-                                   Question.difficulty == 1).limit(3).all()
-    return [{"question_id": q.id, "type": q.type, "stem": q.stem,
-             "options": q.options or [], "difficulty": q.difficulty,
-             "subject": q.subject, "index": i + 1, "is_code": False,
-             "starter_code": ""} for i, q in enumerate(qs)]
-
-
-@router.post("/onboard", response_model=CharacterOut)
-def onboard(body: OnboardIn, db: Session = Depends(get_db),
-            user: User = Depends(get_current_user)):
-    if user.character and user.character.onboarding_done:
-        raise HTTPException(400, "已完成新手引导")
-    if body.class_key not in growth.CLASSES:
-        raise HTTPException(400, "未知职业方向")
-    info = growth.class_info(body.class_key)
-    if user.character is None:
-        char = Character(user_id=user.id)
-        db.add(char)
-        db.flush()
-    else:
-        char = user.character
-    char.name = body.name
-    char.identity = body.identity if body.identity in ("在校学生", "求职中") else "在校学生"
-    char.class_key = body.class_key
-    char.class_name = info["name"]
-
-    # 3 道入门测试题：评估初始等级（答对 2 道以上 → 2 级，否则 1 级）
-    test_qs = db.query(Question).filter(Question.type == "choice",
-                                        Question.difficulty == 1).limit(3).all()
-    score = 0
-    for i, q in enumerate(test_qs[:3]):
-        ans = body.answers[i] if i < len(body.answers) else -1
-        if q.answer.get("correct_index") == ans:
-            score += 1
-    char.level = 2 if score >= 2 else 1
-    char.onboarding_done = True
-    db.commit()
-    growth.unlock_levels(db, user)
-    return _char_out(char)
+def character(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # 引导已下线：没有角色就现补一个，不再抛 400
+    return _char_out(growth.ensure_character(db, user))
 
 
 @router.get("/profile", response_model=ProfileOut)
 def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if not user.character or not user.character.onboarding_done:
-        raise HTTPException(400, "尚未完成新手引导")
+    growth.ensure_character(db, user)
     growth.ensure_daily_tasks(db, user)
     char = user.character
     achievements = []
@@ -155,7 +108,7 @@ def update_profile(body: ProfileUpdateIn, db: Session = Depends(get_db),
     - 学号是 11 位，改完年级、班级、座号随之变化，排行榜分组也跟着变，所以先查重；
       新注册账号的 username 就是学号，这里一起同步，避免「改了学号、旧学号仍能登」。
     - 老账号 username 是原来的中文名，保持不动（双轨登录仍可用）。
-    - 身份存在 Character 上，只有 Onboarding 建过角色才改得到。
+    - 身份存在 Character 上（默认「在校学生」），创建角色时自动带出来。
     """
     if body.real_name is not None:
         name = body.real_name.strip()

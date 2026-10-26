@@ -85,13 +85,6 @@ class TokenOut(BaseModel):
 
 
 # ---------- 角色 ----------
-class OnboardIn(BaseModel):
-    name: str = Field(min_length=1, max_length=32)
-    identity: str = "在校学生"          # 在校学生 / 求职中
-    class_key: str = "backend"
-    answers: list[int] = []            # 3 道入门测试题的选项索引
-
-
 class ClassInfo(BaseModel):
     key: str
     name: str

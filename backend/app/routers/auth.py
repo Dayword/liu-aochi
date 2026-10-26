@@ -37,6 +37,8 @@ def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+    # 注册即建角色：新手引导已下线，登录后直接进首页
+    growth.ensure_character(db, user)
     return TokenOut(access_token=create_token(user.id))
 
 
@@ -90,8 +92,10 @@ def guest(db: Session = Depends(get_db)):
 
 
 @router.get("/me")
-def me(user: User = Depends(get_current_user)):
+def me(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # 存量账号（注册于引导下线之前、没建过角色）在这里补齐，避免任何页面 400
+    growth.ensure_character(db, user)
     return {"id": user.id, "username": user.username, "nickname": user.nickname,
             "student_id": user.student_id, "real_name": user.real_name or user.nickname,
             "grade": user.grade, "class_code": user.class_code,
-            "onboarding_done": user.character.onboarding_done if user.character else False}
+            "onboarding_done": True}
