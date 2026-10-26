@@ -568,3 +568,73 @@ systemctl restart code-adventurer
 
 数据库结构由 SQLAlchemy `create_all` 自动补表（只增不删），回滚代码不会破坏数据；
 但如果新版本改过表结构，回滚前先按上面方式备份。
+
+---
+
+## 附录 A：一条命令完成整备（推荐给"服务器状态不明"时）
+
+适用于：之前装到一半、SSH 卡住、不确定哪些进程还在跑。整段粘贴到服务器终端
+（或阿里云控制台的云助手 / VNC）执行，**它会自己清理残留 + 拉代码 + 部署 + 验证**。
+
+```bash
+cat > /root/go.sh <<'EOS'
+#!/usr/bin/env bash
+export DEBIAN_FRONTEND=noninteractive
+IP=39.96.223.77                      # ← 改成你的公网 IP
+DIR=/root/liu-aochi
+REPO=https://github.com/Dayword/liu-aochi.git
+# 国内拉 GitHub 超时的话，把下面这行注释掉、启用 ghproxy 镜像那行
+# REPO=https://ghfast.top/https://github.com/Dayword/liu-aochi.git
+
+step() { echo -e "\n========== $* =========="; }
+
+step "1/6 现状"
+uptime; free -h; df -h / | tail -1
+
+step "2/6 清理卡死的旧进程"
+pkill -f 'deploy/deploy.sh' 2>/dev/null && echo "已终止旧部署"
+pkill -f 'npm ci|npm install|vite build' 2>/dev/null && echo "已终止旧构建"
+sleep 2
+
+step "3/6 安装基础工具"
+apt-get update -qq
+apt-get install -y -qq git curl ca-certificates >/dev/null
+
+step "4/6 获取代码"
+if [ -d "$DIR/.git" ]; then
+  cd "$DIR" && (git -c http.sslVerify=false pull --ff-only || echo "⚠️ 拉取失败，沿用现有代码")
+else
+  git -c http.sslVerify=false clone --depth 1 "$REPO" "$DIR" || { echo "❌ 拉代码失败，检查网络"; exit 1; }
+fi
+cd "$DIR"
+
+step "5/6 执行部署（5~10 分钟，期间 CPU 会打满属正常）"
+bash deploy/deploy.sh "$IP"
+
+step "6/6 验证"
+systemctl is-active code-adventurer nginx mysql
+curl -s -m 10 http://127.0.0.1:8001/api/health; echo
+curl -s -m 10 -o /dev/null -w "本机 http://127.0.0.1/ → %{http_code}\n" http://127.0.0.1/
+echo -e "\n========== 完成 =========="
+EOS
+
+nohup bash /root/go.sh > /root/deploy.log 2>&1 &
+tail -f /root/deploy.log
+```
+
+`tail` 里按 `Ctrl+C` 只是退出查看，**部署仍在后台跑**。断线重连后：
+
+```bash
+tail -f /root/deploy.log          # 继续看进度
+grep -E "部署完成|❌|失败" /root/deploy.log   # 只看关键行
+```
+
+日志停在哪里，问题就在哪里：
+
+| 日志最后停在 | 含义 | 怎么办 |
+|---|---|---|
+| `3/6 安装基础工具` | `apt-get` 慢，通常是 40G Entry 盘 IOPS 打满 | 等，最多 10 分钟 |
+| `4/6 获取代码` | 拉 GitHub 超时 | 启用 ghproxy 镜像那行，重跑 |
+| `5/6` 里的 `npm ci` | 2G 机器装依赖慢，属正常 | 等，**别中断** |
+| `5/6` 里的 `npm run build` | CPU 打满，正常 | 等 2 分钟 |
+| 完全没输出 | 脚本没起来 | `cat /root/deploy.log` 看报错 |
