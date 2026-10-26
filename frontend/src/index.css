@@ -25,6 +25,23 @@ body {
   @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5;
 }
 
+/* 手机端顶部导航横滑时隐藏滚动条 */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 移动端：去掉点击高亮、防止 iOS 自动放大字号 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

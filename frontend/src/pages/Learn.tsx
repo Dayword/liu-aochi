@@ -175,7 +175,7 @@ function QuizBlock({
               {result.correct ? '✅ 回答正确' : `❌ 回答错误，正确答案是「${result.correct_answer}」`}
             </div>
           ) : (
-            <div className="text-sky-200">
+            <div className="text-sky-700">
               {result.coverage !== null && (
                 <span>
                   要点覆盖 {Math.round((result.coverage || 0) * 100)}%
@@ -420,8 +420,8 @@ export default function Learn() {
         </p>
       </div>
 
-      {/* 科目切换 */}
-      <div className="flex gap-1.5 flex-wrap">
+      {/* 科目切换：手机端横滑一行，桌面端换行铺满 */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-3 px-3 pb-0.5 md:mx-0 md:px-0 md:flex-wrap md:overflow-visible">
         {subjects.map((s) => {
           const all = points.filter((p) => p.subject === s)
           const ok = all.filter((p) => p.status === 'completed').length
@@ -430,7 +430,7 @@ export default function Learn() {
             <button
               key={s}
               onClick={() => pickSubject(s)}
-              className={`px-3 py-1.5 rounded-xl border text-xs transition-all ${
+              className={`px-3 py-1.5 rounded-xl border text-xs whitespace-nowrap shrink-0 transition-all ${
                 active
                   ? 'border-indigo-400 bg-indigo-50 text-indigo-800 font-medium'
                   : 'border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700'
@@ -457,11 +457,14 @@ export default function Learn() {
         </div>
         {/* 按科目内的分组展示，一科 8~10 课才找得到 */}
         {[...new Set(subjectPoints.map((p) => p.stage))].map((stage) => (
-          <div key={stage} className="flex items-start gap-2 flex-wrap mb-1.5">
-            <span className="text-[10px] text-slate-500 w-[112px] shrink-0 pt-1.5 text-right">
+          <div
+            key={stage}
+            className="mb-2 flex flex-col gap-1 md:mb-1.5 md:flex-row md:items-start md:gap-2"
+          >
+            <span className="shrink-0 text-[10px] text-slate-500 md:w-[112px] md:pt-1.5 md:text-right">
               {stage}
             </span>
-            <div className="flex items-center gap-1.5 flex-wrap flex-1">
+            <div className="flex flex-1 flex-wrap items-center gap-1.5">
               {subjectPoints
                 .filter((p) => p.stage === stage)
                 .map((p) => {
@@ -499,12 +502,12 @@ export default function Learn() {
 
       {!loading && detail && (
         <div
-          className={`grid gap-4 items-start ${
+          className={`grid grid-cols-1 gap-4 items-start ${
             detail.has_task ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]' : ''
           }`}
         >
           {/* 左侧：讲解 */}
-          <div className="game-panel p-5">
+          <div className="game-panel p-4 md:p-5">
             <div className="flex items-baseline gap-2 flex-wrap">
               <h2 className="text-lg font-bold text-indigo-700">
                 {detail.subject} · 第 {detail.order_no} 课 · {detail.title}
@@ -635,7 +638,7 @@ export default function Learn() {
                     ? '题目已给好的表结构与数据（不用改，查询时直接用）'
                     : '题目已给好的代码（不用改）'}
                 </div>
-                <pre className="bg-[#f4f6fa] border border-slate-200 rounded-lg p-2 text-xs text-slate-500 font-mono">
+                <pre className="bg-[#f4f6fa] border border-slate-200 rounded-lg p-2 text-xs text-slate-500 font-mono overflow-x-auto">
                   <code>{detail.setup}</code>
                 </pre>
               </div>

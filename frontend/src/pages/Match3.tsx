@@ -339,23 +339,23 @@ export default function Match3() {
             {reached && <span className="ml-2 text-emerald-600">✓ 已达标，继续冲高分</span>}
           </p>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <div className="text-center">
-            <div className="text-slate-500 text-[11px]">剩余步数</div>
+        <div className="flex flex-wrap items-center gap-3 text-sm sm:gap-4">
+          <div className="shrink-0 text-center">
+            <div className="whitespace-nowrap text-[11px] text-slate-500">剩余步数</div>
             <div className={`text-xl font-bold ${movesLeft <= 5 ? 'text-rose-600' : 'text-indigo-700'}`}>
               {movesLeft}
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-slate-500 text-[11px]">得分 / 目标</div>
-            <div className="text-xl font-bold text-amber-600">
+          <div className="shrink-0 text-center">
+            <div className="whitespace-nowrap text-[11px] text-slate-500">得分 / 目标</div>
+            <div className="whitespace-nowrap text-xl font-bold text-amber-600">
               {score}
               <span className="text-slate-500 text-sm"> / {config?.target_score}</span>
             </div>
           </div>
-          <div className="text-center">
-            <div className="text-slate-500 text-[11px]">生命值</div>
-            <div className="text-lg">
+          <div className="min-w-0 text-center">
+            <div className="whitespace-nowrap text-[11px] text-slate-500">生命值</div>
+            <div className="text-sm leading-tight sm:text-lg">
               {'❤️'.repeat(Math.min(lives, MAX_LIVES))}
               <span className="text-slate-400">
                 {'🖤'.repeat(Math.max(0, MAX_LIVES - lives))}
@@ -374,6 +374,7 @@ export default function Match3() {
             style={{
               gridTemplateColumns: `repeat(${config?.cols ?? 8}, minmax(0, 1fr))`,
               width: 'min(88vw, 440px)',
+              maxWidth: '100%',
             }}
           >
             {board.map((row, r) =>

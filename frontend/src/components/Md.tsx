@@ -3,7 +3,9 @@ import ReactMarkdown from 'react-markdown'
 /** 支持 `反引号` 和代码块的轻量 Markdown 渲染（与引导式学习页同一套排版） */
 export default function Md({ children }: { children: string }) {
   return (
-    <ReactMarkdown
+    // break-words：手机上长英文串（函数名、URL、连续大写）不换行会把整页撑出横向滚动条
+    <div className="break-words">
+      <ReactMarkdown
       components={{
         p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
         pre: ({ children }) => (
@@ -25,6 +27,7 @@ export default function Md({ children }: { children: string }) {
       }}
     >
       {children}
-    </ReactMarkdown>
+      </ReactMarkdown>
+    </div>
   )
 }

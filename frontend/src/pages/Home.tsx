@@ -78,7 +78,7 @@ export default function Home() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="game-panel p-6 relative overflow-hidden"
+        className="game-panel p-4 md:p-6 relative overflow-hidden"
       >
         <div className="absolute -right-8 -top-8 text-[8rem] opacity-10 select-none">⚔️</div>
         <div className="flex flex-wrap items-center gap-6 relative z-10">

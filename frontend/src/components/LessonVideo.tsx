@@ -535,13 +535,15 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-indigo-200 bg-white">
       <div className="flex items-center gap-2 border-b border-indigo-100 bg-indigo-50/60 px-4 py-2">
-        <span className="text-sm font-medium text-indigo-700">🎬 讲解视频</span>
-        <span className="text-[11px] text-slate-500">
+        <span className="shrink-0 whitespace-nowrap text-sm font-medium text-indigo-700">
+          🎬 讲解视频
+        </span>
+        <span className="min-w-0 truncate text-[11px] text-slate-500">
           {fmt(total)} · {scenes.length} 个画面 · 内容取自本课原文
         </span>
         {speaking && (
           <span
-            className="flex items-center gap-1 text-[11px] text-emerald-600"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-emerald-600"
             title="正在朗读本镜旁白"
           >
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
@@ -550,7 +552,7 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
         )}
         <button
           onClick={() => setOpen((o) => !o)}
-          className="ml-auto rounded px-2 py-0.5 text-[11px] text-indigo-600 hover:bg-indigo-100"
+          className="ml-auto shrink-0 whitespace-nowrap rounded px-2 py-0.5 text-[11px] text-indigo-600 hover:bg-indigo-100"
         >
           {open ? '收起' : '展开'}
         </button>

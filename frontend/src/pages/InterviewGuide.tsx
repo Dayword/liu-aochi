@@ -234,7 +234,7 @@ export default function InterviewGuide({ onStartMock }: { onStartMock: () => voi
       )}
 
       {!loading && detail && (
-        <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
+        <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,1fr)_minmax(0,440px)]">
           {/* 左：讲解 */}
           <motion.div
             key={detail.code}
@@ -295,7 +295,12 @@ export default function InterviewGuide({ onStartMock }: { onStartMock: () => voi
                 <div className="text-xs text-slate-500 mb-2">
                   满分回答 · 踩坑清单 · 追问链，提交后解锁
                 </div>
-                <Button size="small" type="link" onClick={() => setRevealed(true)}>
+                <Button
+                  size="small"
+                  type="link"
+                  className="h-auto whitespace-normal text-center leading-relaxed"
+                  onClick={() => setRevealed(true)}
+                >
                   不想练了，直接看参考答案（会失去练习效果）
                 </Button>
               </div>

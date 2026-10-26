@@ -223,9 +223,9 @@ export default function Chat() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] items-start">
+      <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* 对话窗口 */}
-        <div className="game-panel p-4 h-[56vh] overflow-y-auto flex flex-col gap-3">
+        <div className="game-panel p-4 h-[48vh] min-h-[320px] overflow-y-auto flex flex-col gap-3 md:h-[56vh]">
         {msgs.length === 0 && (
           <div className="m-auto text-center text-slate-500">
             <div className="text-5xl mb-3 animate-float">🧙</div>
@@ -459,8 +459,9 @@ export default function Chat() {
         ))}
       </div>
 
-      {/* 输入区 */}
-      <div className="flex gap-2">
+      {/* 输入区：手机端吸底，滚动看历史消息时也能直接打字 */}
+      <div className="sticky bottom-0 z-20 -mx-3 flex gap-2 bg-[#f6f7fb]/95 px-3 pb-2 pt-2 backdrop-blur md:static md:mx-0 md:bg-transparent md:px-0 md:pb-0 md:backdrop-blur-none">
+
         <Input.TextArea
           value={input}
           onChange={(e) => setInput(e.target.value)}
