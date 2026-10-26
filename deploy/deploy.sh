@@ -263,6 +263,7 @@ else
   npm install --registry=https://registry.npmmirror.com --silent
 fi
 # 服务器根路径托管，base 用默认的 '/'（GitHub Pages 那份才需要 --base=/liu-aochi/）
+echo "构建中：接下来 1~2 分钟 CPU 会打满、云盘 IOPS 可能触顶（阿里云会推送告警），属正常，不要中断"
 npm run build --silent
 rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_DIR/dist/"
 chown -R www-data:www-data "$WEB_DIR"

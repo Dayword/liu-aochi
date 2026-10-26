@@ -229,6 +229,28 @@ http://39.96.223.77/
 > 排 `502` 时注意：**本机 `curl 127.0.0.1:8001` 通、`curl 127.0.0.1` 不通**，说明问题在
 > Nginx 而不在后端，直接看 `nginx -t` 和 error.log。
 
+### 部署后阿里云报「实例存在 3 项异常」，要不要慌？
+
+**不用。** 每次在这台机器上跑 `deploy.sh`，控制台的「实例自助诊断」基本都会弹这三条，
+它们全是**部署过程的副作用**，不是故障：
+
+| 告警 | 真正原因 | 处理 |
+|---|---|---|
+| CPU 负载达到 97% | `npm run build` 打包 + `pip install numpy/pandas` | 忽略，构建完 1 分钟就降 |
+| 云盘读写 IOPS 达上限 | 上述两步写几千个小文件，**40GiB ESSD Entry 只有 2120 IOPS**，是全系最低档 | 忽略，只是装得慢 |
+| 安骑士（AliYunDun）离线 | 心跳超时；2G 机器上更可能是**内存不足被 OOM killer 挤掉** | `systemctl restart aliyun-service`，反复离线就把 `CODE_RUN_ENABLED` 设 false 省内存 |
+
+判断「真出事」还是「虚惊」只看三条命令：
+
+```bash
+systemctl is-active code-adventurer nginx mysql   # 三个 active = 站点没问题
+dmesg -T | grep -i "killed process" | tail -10    # 有无 OOM；杀到 python/node 才会影响
+free -h && df -h / && swapon --show               # swap 应有 2.0Gi
+```
+
+> 想彻底避开这几条告警：在**本地** `npm run build`，把 `dist` 和整个目录一起
+> `scp` 上去，服务器上就不会跑构建（见 1.2 方式二）。缺点是每次改代码都要重传。
+
 ---
 
 ## 1. 一键部署（约 10 分钟）
