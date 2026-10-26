@@ -48,6 +48,31 @@ if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/v\([0-9]*\).*/\1/
   apt-get install -y -qq nodejs >/dev/null
 fi
 
+# ---------- 1.5 Swap（2G 内存机器的保命配置）----------
+# 本项目常驻内存大约是：MySQL 8 ~400MB + uvicorn(pandas/numpy 已加载) ~400MB
+# + Nginx + 系统，2GiB 机器几乎没余量。学生跑一段 numpy 代码就可能触发 OOM
+# killer 把后端杀掉，表现成"网站突然打不开"（journalctl 里能看到 Killed）。
+# 加 2GB swap 兜住峰值，代价只是偶尔一处慢一点。
+log "配置 swap"
+if ! swapon --show 2>/dev/null | grep -q '/swapfile'; then
+  if [[ ! -f /swapfile ]]; then
+    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
+  fi
+  swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo "已启用 2GB swap"
+else
+  echo "swap 已存在，跳过"
+fi
+
+MEM_MB="$(free -m | awk '/^Mem:/{print $2}')"
+if [[ "${MEM_MB:-0}" -lt 1900 ]]; then
+  echo "⚠️ 检测到内存仅 ${MEM_MB}MB：已靠 swap 兜底，但如果访客多仍可能变慢。"
+  echo "   建议升级到 2vCPU 4GiB，或把 CODE_RUN_ENABLED 设为 false 降低内存峰值。"
+fi
+
 # ---------- 2. 专用系统用户 ----------
 log "创建运行用户 $APP_USER"
 if ! id -u "$APP_USER" >/dev/null 2>&1; then
