@@ -15,9 +15,9 @@ export function getToken(): string | null {
   return localStorage.getItem('ca_token')
 }
 
-// 登录页已移除：业务接口 401 时清空 Token 并整页重载，由「访客直通」重新换一个。
-// 标记位避免接口持续 401 时反复刷新。会话引导自身的 /api/auth/* 不做重载，
-// 交给 AuthProvider 直接降级为访客登录。
+// 登录态失效：清空 Token 并跳到登录页（不再整页重载 + 静默直通）。
+// `ca_relogin` 标记避免多个并发请求同时跳转造成闪烁。
+// /api/auth/* 自身的 401 不跳转，交给调用方（登录页）展示错误。
 const RELOGIN_FLAG = 'ca_relogin'
 
 export function setToken(token: string) {
@@ -27,6 +27,16 @@ export function setToken(token: string) {
 
 export function clearToken() {
   localStorage.removeItem('ca_token')
+}
+
+/** 跳登录页，兼容部署在子路径的情况（GitHub Pages /xxx/）。 */
+function gotoLogin() {
+  if (sessionStorage.getItem(RELOGIN_FLAG)) return
+  sessionStorage.setItem(RELOGIN_FLAG, '1')
+  const base = import.meta.env.BASE_URL || '/'
+  const current = location.pathname + location.search
+  if (current.replace(base, '/') === 'login') return
+  location.replace(`${base}login`)
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -48,10 +58,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     }
     if (resp.status === 401 && !path.startsWith('/api/auth/')) {
       clearToken()
-      if (!sessionStorage.getItem(RELOGIN_FLAG)) {
-        sessionStorage.setItem(RELOGIN_FLAG, '1')
-        location.reload()
-      }
+      gotoLogin()
     }
     throw new ApiError(resp.status, detail)
   }

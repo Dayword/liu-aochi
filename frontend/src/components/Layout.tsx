@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Avatar, Progress } from 'antd'
 import {
   BookOutlined,
@@ -24,12 +24,18 @@ const NAV = [
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { character, offline } = useAuth()
+  const { character, offline, logout } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const expPct = useMemo(() => {
     if (!character) return 0
     return Math.min(100, Math.round((character.exp / character.exp_to_next) * 100))
   }, [character])
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login', { replace: true })
+  }
 
   const isQuest = location.pathname.startsWith('/quest')
 
@@ -85,6 +91,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span>🪙 {character.coins}</span>
                 <span>❤️ {character.hp}/{character.max_hp}</span>
               </div>
+              <button
+                onClick={handleLogout}
+                className="mt-2 w-full text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                退出登录
+              </button>
             </div>
           )}
         </aside>

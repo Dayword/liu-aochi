@@ -1,0 +1,45 @@
+[Unit]
+Description=代码冒险者 API (FastAPI)
+Documentation=https://github.com/Dayword/liu-aochi
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ca
+Group=ca
+WorkingDirectory=/opt/code-adventurer/backend
+
+# ⚠️ 必须单 worker：限流计数、闯关运行态（题目进度/HP）都存在进程内存里，
+# 开多个 worker 会各自一份，导致限流形同虚设、闯关状态错乱。
+ExecStart=/opt/code-adventurer/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8001 --workers 1 --proxy-headers --forwarded-allow-ips='127.0.0.1'
+
+Restart=always
+RestartSec=3
+# 崩溃重启限速，避免配置错误时疯狂重启把服务器拖垮
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# ---- 安全加固 ----
+# 注意：代码沙箱会 fork 子进程执行学生代码，所以这里**不能**用 NoNewPrivileges=true
+# 之外过于激进的限制（如 PrivateDevices/SystemCallFilter 会误杀 Python 子进程）。
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/code-adventurer/backend /tmp
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+# 日志进 journald：journalctl -u code-adventurer -f
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=code-adventurer
+
+# 文件句柄与进程数上限
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target

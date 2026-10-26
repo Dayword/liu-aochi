@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# ============================================================
+# 代码冒险者 · Ubuntu 一键部署脚本（22.04 / 24.04 实测可用）
+#
+# 在**服务器**上、项目目录内执行：
+#   sudo bash deploy/deploy.sh your-domain.com
+#   sudo bash deploy/deploy.sh 1.2.3.4        # 没有域名、只用公网 IP
+#
+# 脚本做的事：装依赖 → 建专用系统用户 → 部署代码 → 建库建账号 →
+# 生成生产 .env（随机密钥、关闭直通登录）→ 构建前端 → 装 systemd + Nginx。
+#
+# 幂等：重复执行会保留已有的 .env 与数据库，只更新代码与配置。
+# ============================================================
+set -euo pipefail
+
+SITE_NAME="${1:-}"
+if [[ -z "$SITE_NAME" ]]; then
+  echo "用法: sudo bash deploy/deploy.sh <域名或公网IP>"
+  exit 1
+fi
+if [[ $EUID -ne 0 ]]; then
+  echo "请用 root 或 sudo 执行"
+  exit 1
+fi
+
+APP_USER="ca"
+APP_DIR="/opt/code-adventurer"
+WEB_DIR="/var/www/code-adventurer"
+SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DB_NAME="code_adventurer"
+DB_USER="ca_app"
+PY_BIN="python3"
+
+log() { echo -e "\n\033[1;36m==> $*\033[0m"; }
+
+# ---------- 1. 系统依赖 ----------
+log "安装系统依赖"
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y -qq python3 python3-venv python3-dev build-essential \
+  pkg-config default-libmysqlclient-dev nginx mysql-server rsync curl ca-certificates \
+  >/dev/null
+
+# Node 18+ 才能跑 Vite 6；Ubuntu 自带版本太旧，用 NodeSource 装 20.x
+if ! command -v node >/dev/null 2>&1 || [[ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -lt 18 ]]; then
+  log "安装 Node.js 20"
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+  apt-get install -y -qq nodejs >/dev/null
+fi
+
+# ---------- 2. 专用系统用户 ----------
+log "创建运行用户 $APP_USER"
+if ! id -u "$APP_USER" >/dev/null 2>&1; then
+  useradd --system --create-home --shell /usr/sbin/nologin "$APP_USER"
+fi
+
+# ---------- 3. 部署代码 ----------
+log "同步代码到 $APP_DIR"
+mkdir -p "$APP_DIR" "$WEB_DIR"
+rsync -a --delete \
+  --exclude '.git' --exclude 'node_modules' --exclude 'venv' --exclude '.venv' \
+  --exclude '__pycache__' --exclude 'dist' --exclude '.env' \
+  "$SRC_DIR"/ "$APP_DIR"/
+mkdir -p "$APP_DIR/frontend" "$APP_DIR/backend"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+
+# ---------- 4. Python 环境 ----------
+log "创建虚拟环境并安装后端依赖"
+if [[ ! -x "$APP_DIR/venv/bin/python" ]]; then
+  "$PY_BIN" -m venv "$APP_DIR/venv"
+fi
+"$APP_DIR/venv/bin/pip" install -q --upgrade pip
+"$APP_DIR/venv/bin/pip" install -q -r "$APP_DIR/backend/requirements.txt" \
+  -i https://pypi.tuna.tsinghua.edu.cn/simple
+chown -R "$APP_USER:$APP_USER" "$APP_DIR/venv"
+
+# ---------- 5. 数据库 ----------
+log "配置 MySQL 数据库"
+systemctl enable --now mysql >/dev/null 2>&1 || true
+
+# 首次部署生成随机密码；重复部署沿用 .env 里已有的，避免把现有连接打断
+ENV_FILE="$APP_DIR/backend/.env"
+if [[ -f "$ENV_FILE" ]] && grep -q '^DB_URL=' "$ENV_FILE"; then
+  DB_PASS="$(grep '^DB_URL=' "$ENV_FILE" | sed -E 's#.*ca_app:([^@]*)@.*#\1#')"
+  echo "检测到已有 .env，沿用原数据库密码"
+else
+  DB_PASS="$(openssl rand -hex 16)"
+fi
+
+mysql --protocol=socket -uroot <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+ALTER USER '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
+FLUSH PRIVILEGES;
+SQL
+
+# ---------- 6. 生产 .env ----------
+log "写入生产配置 backend/.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+  SECRET="$(openssl rand -hex 32)"
+  cat > "$ENV_FILE" <<ENVEOF
+# ===== 生产环境配置（由 deploy.sh 生成，含密钥，切勿提交到 Git）=====
+ENV=prod
+
+DB_URL=mysql+pymysql://${DB_USER}:${DB_PASS}@127.0.0.1:3306/${DB_NAME}?charset=utf8mb4
+REDIS_URL=redis://127.0.0.1:6379/0
+
+SECRET_KEY=${SECRET}
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# 公网必须只允许本站域名访问
+CORS_ORIGINS=http://${SITE_NAME}
+
+# 公网必须关闭直通登录，否则所有人共享同一账号
+ALLOW_GUEST_LOGIN=false
+
+# ===== AI（留空 = 离线演示模式，不花钱）=====
+AI_BASE_URL=
+AI_API_KEY=
+AI_MODEL=
+AI_TIMEOUT=30
+
+# ===== 代码沙箱 =====
+CODE_RUN_ENABLED=true
+CODE_RUN_TIMEOUT=5
+CODE_RUN_PER_MINUTE=12
+AI_CALL_PER_MINUTE=15
+ENVEOF
+  chmod 600 "$ENV_FILE"
+  echo "已生成 .env（数据库密码和 JWT 密钥为随机值，已记录在本文件）"
+else
+  echo "已存在 .env，跳过（如需改 AI Key 请手动编辑 $ENV_FILE）"
+fi
+chown "$APP_USER:$APP_USER" "$ENV_FILE"
+
+# ---------- 7. 前端构建 ----------
+log "构建前端"
+cd "$APP_DIR/frontend"
+if [[ -f package-lock.json ]]; then
+  npm ci --registry=https://registry.npmmirror.com --silent
+else
+  npm install --registry=https://registry.npmmirror.com --silent
+fi
+# 服务器根路径托管，base 用默认的 '/'（GitHub Pages 那份才需要 --base=/liu-aochi/）
+npm run build --silent
+rsync -a --delete "$APP_DIR/frontend/dist/" "$WEB_DIR/dist/"
+chown -R www-data:www-data "$WEB_DIR"
+
+# ---------- 8. systemd 服务 ----------
+log "安装 systemd 服务"
+install -m 644 "$APP_DIR/deploy/code-adventurer.service" /etc/systemd/system/code-adventurer.service
+systemctl daemon-reload
+systemctl enable code-adventurer >/dev/null 2>&1 || true
+
+# ---------- 9. Nginx ----------
+log "配置 Nginx"
+sed "s/server_name your-domain.com;/server_name ${SITE_NAME};/" \
+  "$APP_DIR/deploy/nginx.conf" > /etc/nginx/sites-available/code-adventurer
+ln -sf /etc/nginx/sites-available/code-adventurer /etc/nginx/sites-enabled/code-adventurer
+rm -f /etc/nginx/sites-enabled/default
+nginx -t
+systemctl reload nginx
+
+# ---------- 10. 防火墙 ----------
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
+  log "放行 80/443"
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+fi
+
+# ---------- 11. 启动 ----------
+log "启动后端服务"
+systemctl restart code-adventurer
+sleep 3
+
+if systemctl is-active --quiet code-adventurer; then
+  echo -e "\n\033[1;32m✅ 部署完成\033[0m"
+else
+  echo -e "\n\033[1;31m❌ 后端启动失败，查看日志：journalctl -u code-adventurer -n 50 --no-pager\033[0m"
+fi
+
+cat <<SUMMARY
+
+访问地址      http://${SITE_NAME}
+健康检查      http://${SITE_NAME}/api/health
+后端日志      journalctl -u code-adventurer -f
+Nginx 日志    tail -f /var/log/nginx/code-adventurer.error.log
+生产配置      ${APP_DIR}/backend/.env
+
+首次使用请先注册账号（已关闭免登录直通）。
+如需 HTTPS：apt install certbot python3-certbot-nginx && certbot --nginx -d ${SITE_NAME}
+
+SUMMARY

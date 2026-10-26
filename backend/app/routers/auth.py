@@ -1,7 +1,7 @@
 """认证路由：注册、登录、直通登录、当前用户。"""
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -10,12 +10,19 @@ from ..models import Character, User
 from ..schemas import LoginIn, RegisterIn, TokenOut
 from ..security import create_token, get_current_user, hash_password, verify_password
 from ..services import growth
+from ..services.rate_limit import SlidingWindowLimiter, enforce
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# 防密码爆破：同一 IP 每分钟最多 10 次登录尝试
+_login_limiter = SlidingWindowLimiter(10, 60, "登录尝试")
+# 防批量注册：同一 IP 每小时最多 10 个账号
+_register_limiter = SlidingWindowLimiter(10, 3600, "注册")
+
 
 @router.post("/register", response_model=TokenOut)
-def register(body: RegisterIn, db: Session = Depends(get_db)):
+def register(body: RegisterIn, request: Request, db: Session = Depends(get_db)):
+    enforce(_register_limiter, request)
     if db.query(User).filter(User.username == body.username).first():
         raise HTTPException(400, "用户名已存在")
     user = User(username=body.username, nickname=body.nickname or body.username,
@@ -27,7 +34,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    enforce(_login_limiter, request)
     user = db.query(User).filter(User.username == body.username).first()
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(400, "用户名或密码错误")
@@ -38,12 +46,18 @@ def login(body: LoginIn, db: Session = Depends(get_db)):
 def guest(db: Session = Depends(get_db)):
     """直通登录：页面无需登录，直接以「主账号」身份进入。
 
+    ⚠️ 只有在 `ALLOW_GUEST_LOGIN=True` 时可用（本地开发默认开）。
+    **公网部署必须设成 false**，否则任何人打开网页都是同一个账号，
+    所有人的进度、金币、面试记录会互相覆盖。
+
     主账号由 `settings.AUTO_LOGIN_USERNAME` 指定。这里**只补缺、绝不覆盖**：
     账号已存在就原样使用（进度、成就、记录全都在），只有确实不存在时才新建。
 
     ⚠️ 主账号名写错时，这里会静默新建一个空白账号，学生看到的就是
     「我上次解锁的课全没了」—— 所以账号不存在时一定要打日志。
     """
+    if not settings.ALLOW_GUEST_LOGIN:
+        raise HTTPException(403, "本站已启用账号登录，请使用用户名和密码登录")
     username = settings.AUTO_LOGIN_USERNAME
     user = db.query(User).filter(User.username == username).first()
     if user is None:

@@ -1,17 +1,21 @@
 """AI 导师对话路由（SSE 流式：把模型思考过程与正文实时推给前端）。"""
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import SessionLocal, get_db
 from ..models import ChatMessage, ChatSession, User
 from ..schemas import ChatIn
 from ..security import get_current_user
 from ..services import growth
+from ..services.rate_limit import SlidingWindowLimiter, enforce
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+_chat_limiter = SlidingWindowLimiter(settings.AI_CALL_PER_MINUTE, 60, "AI 对话")
 
 MENTORS = ["老架构师", "大厂面试官", "学霸学长", "Python 全栈导师", "测试大师", "运维骑士长"]
 
@@ -26,7 +30,7 @@ def _sse(payload: dict) -> str:
 
 
 @router.post("/stream")
-async def stream(body: ChatIn, db: Session = Depends(get_db),
+async def stream(body: ChatIn, request: Request, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     """流式对话。事件类型：
     - {"type":"reasoning","text":...}  模型思考过程增量
@@ -40,6 +44,8 @@ async def stream(body: ChatIn, db: Session = Depends(get_db),
         raise HTTPException(400, "未知导师")
     if not body.message.strip():
         raise HTTPException(400, "消息不能为空")
+    # 公网开放后 AI 调用是唯一的持续花钱入口，必须限流
+    enforce(_chat_limiter, request, user.id)
 
     history: list[dict] = []
     if body.session_id:

@@ -3,14 +3,25 @@ import type { ReactNode } from 'react'
 import { api, clearToken, setToken } from '../api/client'
 import type { Character } from '../types'
 
+export interface MeInfo {
+  id: number
+  username: string
+  nickname: string
+  onboarding_done: boolean
+}
+
 interface AuthState {
-  user: { id: number; username: string; nickname: string; onboarding_done: boolean } | null
+  user: MeInfo | null
   character: Character | null
   loading: boolean
-  /** 后端不可达（静态托管 / 服务未启动）时为 true，此时用本地演示角色撑住界面。 */
+  /** 后端不可达（静态托管 / 服务未启动）时为 true */
+  backendDown: boolean
+  /** 用户主动进入的只读演示模式（GitHub Pages 这类没有后端的场景） */
   offline: boolean
   refreshCharacter: () => Promise<void>
-  refreshMe: () => Promise<void>
+  refreshMe: () => Promise<MeInfo>
+  logout: () => void
+  enterOfflineDemo: () => void
 }
 
 const AuthCtx = createContext<AuthState | null>(null)
@@ -44,10 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthState['user']>(null)
   const [character, setCharacter] = useState<Character | null>(null)
   const [loading, setLoading] = useState(true)
+  const [backendDown, setBackendDown] = useState(false)
   const [offline, setOffline] = useState(false)
 
-  const refreshMe = async () => {
-    const me = await api.get<{ id: number; username: string; nickname: string; onboarding_done: boolean }>('/api/auth/me')
+  const refreshMe = async (): Promise<MeInfo> => {
+    const me = await api.get<MeInfo>('/api/auth/me')
     setUser(me)
     if (me.onboarding_done) {
       const c = await api.get<Character>('/api/user/character')
@@ -55,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setCharacter(null)
     }
+    return me
   }
 
   const refreshCharacter = async () => {
@@ -66,24 +79,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // 无登录页：有 token 就复用，没有（或已失效）就静默走访客直通换一个。
+  const logout = () => {
+    clearToken()
+    setUser(null)
+    setCharacter(null)
+    setOffline(false)
+  }
+
+  const enterOfflineDemo = () => {
+    setOffline(true)
+    setUser({ id: 0, username: 'demo', nickname: '冒险者', onboarding_done: true })
+    setCharacter(DEMO_CHARACTER)
+  }
+
+  // 有 token 就校验并复用；没有就停在登录页（不再自动直通登录）。
+  // 后端不可达时只标记 backendDown，让登录页显示「离线演示」入口，
+  // 这样静态托管（GitHub Pages）下也不会白屏。
   const ensureSession = async () => {
-    if (localStorage.getItem('ca_token')) {
+    if (!localStorage.getItem('ca_token')) {
+      // 没有 token 时顺手探一次后端：静态托管（无后端）下据此显示「离线演示」入口
       try {
-        await refreshMe()
-        return
+        await api.get('/api/health')
       } catch {
-        clearToken()
+        setBackendDown(true)
       }
+      return
     }
     try {
-      const r = await api.post<{ access_token: string }>('/api/auth/guest')
-      setToken(r.access_token)
       await refreshMe()
     } catch {
-      setOffline(true)
-      setUser({ id: 0, username: 'guest', nickname: '冒险者', onboarding_done: true })
-      setCharacter(DEMO_CHARACTER)
+      clearToken()
+      setBackendDown(true)
     }
   }
 
@@ -93,7 +119,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthCtx.Provider value={{ user, character, loading, offline, refreshCharacter, refreshMe }}>
+    <AuthCtx.Provider value={{
+      user, character, loading, backendDown, offline,
+      refreshCharacter, refreshMe, logout, enterOfflineDemo,
+    }}>
       {children}
     </AuthCtx.Provider>
   )
