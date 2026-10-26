@@ -73,6 +73,21 @@ if [[ "${MEM_MB:-0}" -lt 1900 ]]; then
   echo "   建议升级到 2vCPU 4GiB，或把 CODE_RUN_ENABLED 设为 false 降低内存峰值。"
 fi
 
+# ---------- 1.6 停掉预装 Docker ----------
+# 阿里云「应用镜像」下拉里常常只有 宝塔/WordPress/Docker/LNMP 可选，没有纯系统。
+# Docker 是这四个里唯一不会和本脚本抢 80/3306 的，但 dockerd + containerd
+# 常驻要吃掉 100~150MB，对本项目毫无用处（全是裸进程，不用容器）。
+if systemctl list-unit-files 2>/dev/null | grep -q '^docker\.service'; then
+  log "检测到预装 Docker，停止并禁用（本项目不用容器，省内存）"
+  systemctl disable --now docker docker.socket containerd 2>/dev/null || true
+  echo "已关闭 Docker；将来要用可执行 systemctl enable --now docker 恢复"
+fi
+# 顺带拦一下更危险的预装：宝塔/LNMP 会和脚本装的 Nginx、MySQL 直接打架
+if [[ -f /etc/init.d/bt ]] || command -v bt >/dev/null 2>&1; then
+  echo "⚠️ 检测到宝塔面板：它会占用 8888 并自装 Nginx/MySQL，与本次部署冲突。"
+  echo "   建议重装系统并选择「Docker」或纯净镜像，否则请先手动卸载宝塔。"
+fi
+
 # ---------- 2. 专用系统用户 ----------
 log "创建运行用户 $APP_USER"
 if ! id -u "$APP_USER" >/dev/null 2>&1; then
@@ -148,7 +163,10 @@ AI_TIMEOUT=30
 
 # ===== 代码沙箱 =====
 CODE_RUN_ENABLED=true
-CODE_RUN_TIMEOUT=5
+# 超时给到 10s（本地开发是 5s）：共享型实例（经济型 e）的 CPU 会被邻居抢占，
+# 5 秒容易把学生本来正确的代码误判成"运行超时"，而这种误判极难想到是机器问题。
+# 正常代码 0.1s 就跑完，放宽只是让死循环多等 5 秒。
+CODE_RUN_TIMEOUT=10
 CODE_RUN_PER_MINUTE=12
 AI_CALL_PER_MINUTE=15
 ENVEOF
