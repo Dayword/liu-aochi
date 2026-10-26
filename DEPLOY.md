@@ -111,7 +111,10 @@ git clone https://github.com/Dayword/liu-aochi.git /root/liu-aochi
 > `scp -r D:/PythonProject/SoftwareEngineeringWebsite root@39.96.223.77:/root/liu-aochi` 传上去。
 
 > ⚠️ **连不上服务器的三种情况，别混在一起判断**：
-> - 报「**连接超时 / Connection timed out**」→ 安全组没放行 22，去控制台加规则。
+> - 报「**连接超时 / Connection timed out**」→ 安全组没放行 22。路径：ECS 控制台 →
+>   实例 ID → 「安全组」→ 点安全组 ID → 「配置规则」→ 入方向 → 手动添加
+>   `22/22`，授权对象 `0.0.0.0/0`（调试阶段先全开，稳定后改成自己的 IP）。
+>   保存即刻生效、不用重启。网站还要再放行 `80/80`，建议一次加两条。
 > - 报「**无法使用密码登录方式 / Permission denied**」→ 认证被关掉了。在控制台
 >   「重置密码」→ **重启实例**（不重启不生效）→ 再连。仍不行就用「通过 VNC 连接」进系统，
 >   把 `/etc/ssh/sshd_config.d/` 里的 `PasswordAuthentication no` 改成 `yes`，
@@ -120,6 +123,9 @@ git clone https://github.com/Dayword/liu-aochi.git /root/liu-aochi
 >   自己电脑上必须用公网 IP（控制台实例列表上显示的那个）。
 >
 > 另：阿里云控制台「远程连接」弹窗里预填的常是私网 IP，别照抄。
+>
+> **安全组放行后仍超时的备选方案**：直接用控制台「通过 VNC 连接实例」进系统，
+> VNC 走阿里云内部通道，不经过安全组、也不需要 SSH 认证，装完再看 80 是否可达。
 
 ### 步骤 2：一条命令装完
 
