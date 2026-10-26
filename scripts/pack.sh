@@ -56,7 +56,9 @@ echo "==> 2/3 打包"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 # 刻意排除：node_modules（体积大且服务器用不到）、.git（服务器不做版本管理）、
-#           虚拟环境、字节码、以及所有 .env（里面有 AI Key 和数据库密码）
+#           虚拟环境、字节码、所有 .env（里面有 AI Key 和数据库密码）、
+#           .workbuddy（Agent 记忆与验收截图，属于本机工作区，单张图就有几 MB）、
+#           上一次打出来的 ca-deploy.tar.gz（否则每次打包都会把上一版塞进新包里）
 set +e
 (
   cd "$TMP_DIR" || exit 2
@@ -70,6 +72,8 @@ set +e
     --exclude='.env' \
     --exclude='.env.local' \
     --exclude='.env.production' \
+    --exclude='.workbuddy' \
+    --exclude='ca-deploy.tar.gz' \
     -C "$ROOT" .
 )
 TAR_RC=$?
