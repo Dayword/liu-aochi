@@ -4,6 +4,7 @@ import { App, Button, Input, Segmented } from 'antd'
 import { motion } from 'framer-motion'
 import { api, setToken } from '../api/client'
 import { useAuth } from '../store/auth'
+import IcpFooter from '../components/IcpFooter'
 
 type Mode = 'login' | 'register'
 
@@ -158,6 +159,7 @@ export default function Auth() {
           </div>
         )}
       </motion.div>
+      <IcpFooter />
     </div>
   )
 }

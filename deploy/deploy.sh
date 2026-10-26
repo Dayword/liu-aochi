@@ -157,7 +157,7 @@ log "同步代码到 $APP_DIR"
 mkdir -p "$APP_DIR" "$WEB_DIR"
 rsync -a --delete \
   --exclude '.git' --exclude 'node_modules' --exclude 'venv' --exclude '.venv' \
-  --exclude '__pycache__' --exclude 'dist' --exclude '.env' \
+  --exclude '__pycache__' --exclude 'dist' --exclude '.env' --exclude '.env.production' \
   "$SRC_DIR"/ "$APP_DIR"/
 mkdir -p "$APP_DIR/frontend" "$APP_DIR/backend"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
@@ -248,6 +248,15 @@ chown "$APP_USER:$APP_USER" "$ENV_FILE"
 # ---------- 7. 前端构建 ----------
 log "构建前端"
 cd "$APP_DIR/frontend"
+
+# ICP 备案号：管局要求首页底部必须展示，抽查缺失会被要求整改。
+# 用法：ICP_BEIAN="冀ICP备2026xxxxxx号-1" sudo bash deploy/deploy.sh hongchi.xyz --https
+if [[ -n "${ICP_BEIAN:-}" ]]; then
+  echo "VITE_ICP_BEIAN=${ICP_BEIAN}" > .env.production
+  echo "已注入备案号：${ICP_BEIAN}（构建后显示在页面底部）"
+elif [[ -f .env.production ]]; then
+  echo "沿用已有 .env.production 里的备案号"
+fi
 if [[ -f package-lock.json ]]; then
   npm ci --registry=https://registry.npmmirror.com --silent
 else

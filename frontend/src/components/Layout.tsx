@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons'
 import { motion } from 'framer-motion'
 import { useAuth } from '../store/auth'
+import IcpFooter from './IcpFooter'
 
 const NAV = [
   { to: '/', label: '首页', icon: <HomeOutlined /> },
@@ -121,6 +122,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         >
           {children}
         </motion.div>
+        <IcpFooter />
       </main>
 
       {offline && (
