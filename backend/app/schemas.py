@@ -552,3 +552,14 @@ class ProfileOut(BaseModel):
     student: dict = {}
     learn: dict = {}
     rank: dict = {}
+
+
+class ProfileUpdateIn(BaseModel):
+    """个人资料修改：字段都可选，只改传上来的那几项。
+
+    学号改动会连带改变年级 / 班级 / 座号与排行榜分组，查重与格式化在路由里做。
+    """
+    real_name: Optional[str] = None
+    nickname: Optional[str] = None
+    student_id: Optional[str] = None
+    identity: Optional[str] = None

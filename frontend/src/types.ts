@@ -244,7 +244,7 @@ export interface Profile {
   wrong_count: number
   radar: { subjects: string[]; scores: number[] }
   recent_levels: { code: string; name: string; icon: string; best_score: number }[]
-  student: { student_id: string; real_name: string; grade: string; class_code: string; seat_no: string }
+  student: { student_id: string; real_name: string; nickname?: string; grade: string; class_code: string; seat_no: string }
   learn: { completed: number; total: number; pct: number }
   rank: Partial<LeaderMe>
 }

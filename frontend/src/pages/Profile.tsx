@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { App, Button, Empty, Progress, Skeleton } from 'antd'
-import { RightOutlined, StarOutlined, TrophyOutlined } from '@ant-design/icons'
+import { App, Button, Empty, Input, Modal, Progress, Segmented, Skeleton } from 'antd'
+import {
+  EditOutlined,
+  RightOutlined,
+  StarOutlined,
+  TrophyOutlined,
+} from '@ant-design/icons'
 import * as echarts from 'echarts'
 import { api } from '../api/client'
 import { useAuth } from '../store/auth'
@@ -54,16 +59,25 @@ function RadarChart({ subjects, scores }: { subjects: string[]; scores: number[]
 /** 「我的」页：个人信息 / 学习进度 / 排名 / 成就 / 收藏 / 错题 */
 export default function Profile() {
   const { message, modal } = App.useApp()
-  const { logout, user } = useAuth()
+  const { logout, user, refreshMe } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [wrongBook, setWrongBook] = useState<WrongItem[]>([])
   const [loading, setLoading] = useState(true)
   const [showAllAch, setShowAllAch] = useState(false)
   const [showAllWrong, setShowAllWrong] = useState(false)
+  // 资料编辑弹窗
+  const [editOpen, setEditOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({
+    real_name: '',
+    nickname: '',
+    student_id: '',
+    identity: '在校学生',
+  })
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const [p, w] = await Promise.all([
         api.get<Profile>('/api/user/profile'),
@@ -74,7 +88,7 @@ export default function Profile() {
     } catch (e) {
       message.error((e as Error).message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -87,6 +101,47 @@ export default function Profile() {
     await api.post(`/api/growth/wrong-book/${id}/resolve`)
     message.success('已标记为掌握')
     load()
+  }
+
+  /** 打开编辑弹窗：用当前资料预填 */
+  const openEdit = () => {
+    setForm({
+      real_name: profile?.student?.real_name || user?.real_name || '',
+      nickname: profile?.student?.nickname || user?.nickname || '',
+      student_id: profile?.student?.student_id || user?.student_id || '',
+      identity: profile?.character?.identity || '在校学生',
+    })
+    setEditOpen(true)
+  }
+
+  /** 保存资料：姓名必填，学号必须 11 位数字（后端还会查重） */
+  const saveProfile = async () => {
+    const name = form.real_name.trim()
+    if (!name) {
+      message.warning('请填写姓名')
+      return
+    }
+    if (!/^\d{11}$/.test(form.student_id)) {
+      message.warning('学号必须是 11 位数字')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.patch('/api/user/profile', {
+        real_name: name,
+        nickname: form.nickname.trim(),
+        student_id: form.student_id,
+        identity: form.identity,
+      })
+      message.success('资料已更新')
+      setEditOpen(false)
+      await refreshMe()          // 同步顶部品牌条 / 侧栏里的姓名
+      await load(true)           // 静默刷新，不闪骨架屏
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const askLogout = () => {
@@ -124,9 +179,16 @@ export default function Profile() {
 
   return (
     <div className="space-y-3">
-      {/* ===== 个人信息 ===== */}
-      <div className="game-panel p-3">
-        <div className="flex items-center gap-3">
+      {/* ===== 个人信息（可查看 + 点「编辑」修改） ===== */}
+      <div className="game-panel relative p-3">
+        <button
+          onClick={openEdit}
+          className="absolute right-2.5 top-2.5 z-10 flex items-center gap-0.5 rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-600 active:bg-indigo-100"
+        >
+          <EditOutlined className="text-[10px]" />
+          编辑
+        </button>
+        <div className="flex items-center gap-3 pr-14">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-white flex items-center justify-center text-xl shrink-0">
             {realName.slice(0, 1)}
           </div>
@@ -143,6 +205,8 @@ export default function Profile() {
             </div>
             <div className="text-[11px] text-slate-400 truncate">
               {character.class_name} · {character.identity}
+              {student?.seat_no && ` · ${student.seat_no} 号`}
+              {student?.nickname && student.nickname !== realName && ` · @${student.nickname}`}
             </div>
           </div>
         </div>
@@ -352,6 +416,75 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      {/* ===== 资料编辑弹窗 ===== */}
+      <Modal
+        open={editOpen}
+        title="编辑个人资料"
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={saving}
+        onOk={saveProfile}
+        onCancel={() => setEditOpen(false)}
+        width={420}
+      >
+        <div className="space-y-3 pt-1">
+          <div>
+            <div className="text-[12px] text-slate-500 mb-1">
+              姓名 <span className="text-rose-500">*</span>
+            </div>
+            <Input
+              maxLength={20}
+              value={form.real_name}
+              placeholder="真实姓名，排行榜展示用"
+              onChange={(e) => setForm({ ...form, real_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <div className="text-[12px] text-slate-500 mb-1">昵称</div>
+            <Input
+              maxLength={20}
+              value={form.nickname}
+              placeholder="冒险者昵称，例如 阿测"
+              onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+            />
+          </div>
+          <div>
+            <div className="text-[12px] text-slate-500 mb-1">学号</div>
+            <Input
+              maxLength={11}
+              inputMode="numeric"
+              value={form.student_id}
+              placeholder="11 位学号"
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  student_id: e.target.value.replace(/\D/g, '').slice(0, 11),
+                })
+              }
+            />
+            <div className="mt-1 text-[10px] leading-relaxed text-slate-400">
+              {form.student_id.length === 11
+                ? `${form.student_id.slice(0, 4)} 级 · 班级 ${form.student_id.slice(4, 9)} · 座号 ${form.student_id.slice(9)}`
+                : '11 位数字 = 前 4 位年级 + 中间 5 位班级 + 后 2 位座号'}
+              <br />
+              改学号会同步改变年级 / 班级 / 座号，并影响排行榜分组
+            </div>
+          </div>
+          <div>
+            <div className="text-[12px] text-slate-500 mb-1">身份</div>
+            <Segmented
+              block
+              value={form.identity}
+              onChange={(v) => setForm({ ...form, identity: v as string })}
+              options={[
+                { label: '🎓 在校学生', value: '在校学生' },
+                { label: '💼 求职中', value: '求职中' },
+              ]}
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* ===== 退出登录（手机上唯一的入口） ===== */}
       <Button block danger onClick={askLogout} className="mb-2">

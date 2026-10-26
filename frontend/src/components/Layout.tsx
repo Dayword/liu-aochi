@@ -17,11 +17,19 @@ import { useAuth } from '../store/auth'
 import IcpFooter from './IcpFooter'
 
 /**
- * 底部三 Tab：手机端的主要导航。
- * 「AI 导师」这一栏把 /sandbox 也算进来，因为沙箱是从导师页跳过去的。
+ * 底部四 Tab：手机端的主要导航。
+ * 顺序固定为 首页 / 引导式学习 / AI 导师 / 我的。
+ * 「AI 导师」这一栏把 /sandbox 也算进来，因为沙箱是从导师页跳过去的；
+ * 「我的」吃掉 /leaderboard，因为排行榜是从我的页进去的。
  */
 const TABS = [
   { to: '/', label: '首页', match: (p: string) => p === '/', icon: <HomeOutlined /> },
+  {
+    to: '/learn',
+    label: '引导式学习',
+    match: (p: string) => p.startsWith('/learn'),
+    icon: <BookOutlined />,
+  },
   {
     to: '/chat',
     label: 'AI导师',
@@ -203,7 +211,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <NavLink
                   key={t.to}
                   to={t.to}
-                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-[11px] transition-colors ${
+                  className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-[10px] leading-none whitespace-nowrap transition-colors ${
                     active ? 'text-indigo-600 font-medium' : 'text-slate-400'
                   }`}
                 >
