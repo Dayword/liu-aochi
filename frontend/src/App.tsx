@@ -6,7 +6,7 @@ import Auth from './pages/Auth'
 import Home from './pages/Home'
 import LevelMap from './pages/LevelMap'
 import Quest from './pages/Quest'
-import Match3 from './pages/Match3'
+import Game from './pages/Game'
 import Learn from './pages/Learn'
 import LearnPractice from './pages/LearnPractice'
 import Sandbox from './pages/Sandbox'
@@ -15,6 +15,8 @@ import Interview from './pages/Interview'
 import BugHunter from './pages/BugHunter'
 import Profile from './pages/Profile'
 import Leaderboard from './pages/Leaderboard'
+import WrongBook from './pages/WrongBook'
+import Favorites from './pages/Favorites'
 
 function FullScreenSpin() {
   return (
@@ -58,13 +60,17 @@ function Routing() {
           {/* 独立代码沙箱页：AI 导师里的 🧪 图标跳到这里 */}
           <Route path="/sandbox" element={<Sandbox />} />
           <Route path="/levels" element={<LevelMap />} />
+          {/* 知识小游戏：4 种玩法由关卡场景决定（见后端 routers/games.py） */}
+          <Route path="/game/:levelCode" element={<Game />} />
+          {/* 刷题模式：10 道题的答题闯关，也是「收藏题目」的主要入口 */}
           <Route path="/quest/:levelCode" element={<Quest />} />
-          <Route path="/match3/:levelCode" element={<Match3 />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/interview" element={<Interview />} />
           <Route path="/bugs" element={<BugHunter />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/wrong" element={<WrongBook />} />
+          <Route path="/favorites" element={<Favorites />} />
         </Route>
       </Route>
 

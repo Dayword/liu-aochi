@@ -31,7 +31,7 @@ export default function Auth() {
   const [confirm, setConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const { refreshMe, backendDown, enterOfflineDemo } = useAuth()
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -42,30 +42,11 @@ export default function Auth() {
     if (!/^\d{11}$/.test(sid)) return null
     return { grade: sid.slice(0, 4), cls: sid.slice(4, 9), seat: sid.slice(9, 11) }
   }, [sid])
+  /** 姓名必须是中文：2~10 个汉字，允许少数民族姓名的「·」 */
+  const NAME_RE = /^[\u4e00-\u9fa5·]{2,10}$/
+  const nameOk = NAME_RE.test(realName.trim())
 
-  const submit = async () => {
-    if (!/^\d{11}$/.test(sid)) {
-      message.warning('学号必须是 11 位数字')
-      return
-    }
-    if (mode === 'register') {
-      if (!realName.trim()) {
-        message.warning('请填写姓名')
-        return
-      }
-      if (!pwdOk) {
-        message.warning('密码需同时包含大写字母、小写字母、数字、特殊符号（8~64 位）')
-        return
-      }
-      if (password !== confirm) {
-        message.warning('两次输入的密码不一致')
-        return
-      }
-    } else if (!password) {
-      message.warning('请输入密码')
-      return
-    }
-
+  const doSubmit = async () => {
     setSubmitting(true)
     try {
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register'
@@ -85,6 +66,56 @@ export default function Auth() {
     }
   }
 
+  const submit = async () => {
+    if (!/^\d{11}$/.test(sid)) {
+      message.warning('学号必须是 11 位数字')
+      return
+    }
+    if (mode === 'register') {
+      if (!nameOk) {
+        message.warning('姓名必须是中文（2~10 个汉字），不能填数字或英文')
+        return
+      }
+      if (!pwdOk) {
+        message.warning('密码需同时包含大写字母、小写字母、数字、特殊符号（8~64 位）')
+        return
+      }
+      if (password !== confirm) {
+        message.warning('两次输入的密码不一致')
+        return
+      }
+      // 学号 + 姓名注册后不可改，所以先让他看清楚再落库
+      modal.confirm({
+        title: '确认注册信息',
+        content: (
+          <div className="space-y-1 pt-1 text-[13px] leading-relaxed">
+            <div>
+              学号：<b>{sid}</b>
+            </div>
+            <div>
+              姓名：<b>{realName.trim()}</b>
+            </div>
+            <div className="mt-1 text-[11px] text-slate-500">
+              {parsed ? `${parsed.grade} 级 · 班级 ${parsed.cls} · 座号 ${parsed.seat}` : ''}
+            </div>
+            <div className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-[11.5px] text-rose-600">
+              学号与姓名注册后<b>不可修改</b>，请再核对一遍。
+            </div>
+          </div>
+        ),
+        okText: '信息无误，注册',
+        cancelText: '返回修改',
+        onOk: doSubmit,
+      })
+      return
+    }
+    if (!password) {
+      message.warning('请输入密码')
+      return
+    }
+    await doSubmit()
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <motion.div
@@ -93,8 +124,8 @@ export default function Auth() {
         className="game-panel w-full max-w-md p-6 md:p-8"
       >
         <div className="text-center mb-5">
-          <div className="text-4xl mb-2">⚔️</div>
-          <h1 className="text-xl font-bold text-indigo-700">代码冒险者</h1>
+          <div className="text-4xl mb-2">🌌</div>
+          <h1 className="text-xl font-bold text-indigo-700">码境 CodeRealm</h1>
           <p className="text-slate-500 text-xs mt-1">软件工程 · 游戏化 AI 学习</p>
         </div>
 
@@ -139,9 +170,19 @@ export default function Auth() {
                 size="large"
                 value={realName}
                 onChange={(e) => setRealName(e.target.value)}
-                placeholder="真实姓名，会显示在排行榜上"
-                maxLength={20}
+                placeholder="真实姓名（中文）"
+                maxLength={10}
+                status={realName && !nameOk ? 'error' : undefined}
               />
+              {realName && !nameOk ? (
+                <div className="text-[11px] text-rose-500 mt-1">
+                  只能填中文姓名（2~10 个汉字），不能是数字或英文
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-400 mt-1">
+                  会显示在排行榜上，注册后不可修改
+                </div>
+              )}
             </div>
           )}
 

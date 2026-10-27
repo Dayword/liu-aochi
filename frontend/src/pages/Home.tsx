@@ -52,7 +52,7 @@ const SMALL_ENTRIES = [
     icon: <EnvironmentOutlined />,
     emoji: '🗺️',
     title: '关卡地图',
-    desc: '闯关刷题涨经验',
+    desc: '4 种知识小游戏',
     tone: 'from-emerald-500 to-teal-500',
   },
   {

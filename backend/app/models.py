@@ -44,11 +44,11 @@ class User(Base):
 
 
 class Character(Base):
-    """玩家角色（代码冒险者）。"""
+    """玩家角色（码境）。"""
     __tablename__ = "characters"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
-    name: Mapped[str] = mapped_column(String(64), default="代码冒险者")
+    name: Mapped[str] = mapped_column(String(64), default="冒险者")
     identity: Mapped[str] = mapped_column(String(16), default="在校学生")  # 在校学生 / 求职中
     class_key: Mapped[str] = mapped_column(String(32), default="backend")  # 职业分支
     class_name: Mapped[str] = mapped_column(String(32), default="后端战士")
@@ -163,6 +163,35 @@ class WrongAnswer(Base):
     user_answer: Mapped[str] = mapped_column(Text, default="")
     reason: Mapped[str] = mapped_column(String(32), default="")  # 概念不清/计算错误/思路偏差
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class QuestionFavorite(Base):
+    """题目收藏：用户手动点星标收藏，独立于错题本。"""
+
+    __tablename__ = "question_favorites"
+    __table_args__ = (UniqueConstraint("user_id", "question_id", name="uq_user_favorite"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class GameRound(Base):
+    """一局知识小游戏：题面与标准答案都留在服务端，前端只拿题面。
+
+    payload 下发（含答对所需信息，让前端能即时反馈），answer 只用于判分。
+    mode: match(连连看) / order(排序) / speed(竞速) / grid(网格消除)
+    """
+
+    __tablename__ = "game_rounds"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    level_code: Mapped[str] = mapped_column(String(32), index=True)
+    mode: Mapped[str] = mapped_column(String(16), default="match")
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    answer: Mapped[dict] = mapped_column(JSON, default=dict)
+    finished: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Level, User, UserLevelProgress
+from ..routers.games import MODE_BY_SCENE, MODE_META
 from ..security import get_current_user
 from ..services import growth
 
@@ -24,18 +25,23 @@ def level_map(db: Session = Depends(get_db), user: User = Depends(get_current_us
         prog = progress.get(lv.code)
         status = prog.status if prog else "locked"
         completed = status == "completed"
+        mode = MODE_BY_SCENE.get(lv.scene, "match")
         out.append({"code": lv.code, "name": lv.name, "scene": lv.scene,
                     "description": lv.description, "difficulty": lv.difficulty,
                     "order_no": lv.order_no, "unlock_prev": lv.unlock_prev,
                     "subject": lv.subject, "tags": lv.tags or [],
                     "recommended_class": lv.recommended_class,
                     "base_exp": lv.base_exp, "icon": lv.icon, "status": status,
+                    # best_score 现在存星级 0~3
                     "best_score": prog.best_score if prog else 0,
                     "attempts": prog.attempts if prog else 0,
+                    "mode": mode, "mode_name": MODE_META[mode][0],
                     "completed": completed})
         scenes.setdefault(lv.scene, {"name": lv.scene, "icon": lv.icon,
-                                     "level_count": 0, "completed_count": 0})
+                                     "level_count": 0, "completed_count": 0,
+                                     "stars": 0})
         scenes[lv.scene]["level_count"] += 1
         if completed:
             scenes[lv.scene]["completed_count"] += 1
+        scenes[lv.scene]["stars"] += int(prog.best_score or 0) if prog else 0
     return {"scenes": list(scenes.values()), "levels": out}

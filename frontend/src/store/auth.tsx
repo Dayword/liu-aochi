@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { api, clearToken, setToken } from '../api/client'
+import { clearFavoriteCache } from './favorites'
 import type { Character } from '../types'
 
 export interface MeInfo {
@@ -33,7 +34,7 @@ const AuthCtx = createContext<AuthState | null>(null)
 
 // 后端连不上时的演示角色：只用于让页面正常渲染，所有真实数据仍来自接口。
 const DEMO_CHARACTER: Character = {
-  name: '代码冒险者',
+  name: '冒险者',
   identity: '在校学生',
   class_key: 'backend',
   class_name: '后端战士',
@@ -83,6 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     clearToken()
+    // 收藏星标是模块级缓存，不在这里清掉，下一个登录的人会看到上一个人的星标
+    clearFavoriteCache()
     setUser(null)
     setCharacter(null)
     setOffline(false)

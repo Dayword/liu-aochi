@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="代码冒险者 · 软件工程游戏化 AI 问答系统", version="0.1.0",
+app = FastAPI(title="码境 CodeRealm · 软件工程游戏化 AI 问答系统", version="0.2.0",
               lifespan=lifespan)
 
 _origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -94,4 +94,4 @@ def _ai_flag():
 
 @app.get("/")
 def root():
-    return {"name": "代码冒险者 API", "docs": "/docs"}
+    return {"name": "码境 CodeRealm API", "docs": "/docs"}

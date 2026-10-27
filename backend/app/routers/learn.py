@@ -21,7 +21,7 @@ from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        LearnQuizResult, LearnQuizSubmitIn)
 from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
-from ..services import sql_runner
+from ..services import growth, sql_runner
 from ..services.code_runner import run_python
 
 # 讲解视频脚本是构建期产物，启动时读一次常驻内存（394KB，解析几毫秒）。
@@ -268,7 +268,13 @@ def _refresh_completion(db: Session, user: User, prog: LearnProgress,
     if done and prog.status != "completed":
         prog.status = "completed"
         prog.completed_at = now()
+        # ⚠️ 全站唯一的经验来源：每完成一个课时 +10 点（services/growth.py 文件头）。
+        # 只在这一处发经验，且只在「从未完成 → 完成」时发一次，
+        # 反复刷同一课不会重复拿分（否则刷一门课就能刷满级）。
+        if user.character:
+            growth.add_exp(db, user.character, growth.LESSON_EXP)
         db.commit()
+        growth.check_achievements(db, user)
 
     nxt = _next_unlocked(db, user, point["code"]) if done else None
     return done, nxt

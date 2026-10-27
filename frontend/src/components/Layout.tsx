@@ -39,7 +39,11 @@ const TABS = [
   {
     to: '/profile',
     label: '我的',
-    match: (p: string) => p.startsWith('/profile') || p.startsWith('/leaderboard'),
+    match: (p: string) =>
+      p.startsWith('/profile') ||
+      p.startsWith('/leaderboard') ||
+      p.startsWith('/wrong') ||
+      p.startsWith('/favorites'),
     icon: <UserOutlined />,
   },
 ]
@@ -99,6 +103,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
    */
   const hideChrome =
     location.pathname.startsWith('/quest') ||
+    location.pathname.startsWith('/game') ||
     location.pathname.startsWith('/sandbox') ||
     /^\/learn\/[^/]+\/practice$/.test(location.pathname)
 
@@ -108,8 +113,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {!hideChrome && (
         <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-indigo-200">
           <div className="flex items-center gap-2 px-3 h-11">
-            <span className="text-lg leading-none">⚔️</span>
-            <span className="font-bold text-[15px] text-indigo-700 truncate">代码冒险者</span>
+            <span className="text-lg leading-none">🌌</span>
+            <span className="font-bold text-[15px] text-indigo-700 truncate">码境 CodeRealm</span>
             {character && (
               <span className="ml-auto text-[11px] text-amber-600 font-medium shrink-0">
                 Lv.{character.level} · {character.title}
@@ -123,9 +128,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {!hideChrome && (
         <aside className="hidden md:flex w-56 shrink-0 border-r border-indigo-200 bg-white/80 backdrop-blur flex-col sticky top-0 h-screen z-20">
           <div className="px-4 py-4 flex items-center gap-2">
-            <span className="text-3xl">⚔️</span>
+            <span className="text-3xl">🌌</span>
             <div>
-              <div className="font-bold text-indigo-700">代码冒险者</div>
+              <div className="font-bold text-indigo-700">码境 CodeRealm</div>
               <div className="text-[11px] text-slate-500">软件工程 · 游戏化学习</div>
             </div>
           </div>

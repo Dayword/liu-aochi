@@ -33,19 +33,42 @@ LEVELS = [
 ]
 
 # ================= 成就 =================
+# 8 个家族 × 铜/银/金三档，与 services/growth.py 的 ACH_FAMILIES 一一对应。
+# 加成就必须两边同时改：这里负责落库，ACH_FAMILIES 负责分组与阶梯展示。
+# exp_reward 恒为 0 —— 经验只来自完成课时。
 ACHIEVEMENTS = [
-    ("first_step", "初入江湖", "完成第一次知识闯关", "🎖️", "学习", "total_quests", 1, 30, 15),
-    ("correct_10", "小试牛刀", "累计答对 10 道题", "⚡", "刷题", "total_correct", 10, 40, 20),
-    ("correct_50", "刷题达人", "累计答对 50 道题", "🔥", "刷题", "total_correct", 50, 100, 50),
-    ("correct_100", "百题斩", "累计答对 100 道题", "💯", "刷题", "total_correct", 100, 200, 100),
-    ("chat_5", "话痨养成", "与 AI 导师对话 5 次", "💬", "学习", "total_chats", 5, 60, 30),
-    ("bug_1", "Bug 猎手", "完成 1 次 Bug 猎人挑战", "🐛", "刷题", "total_bugs", 1, 50, 25),
-    ("bug_5", "Bug 终结者", "完成 5 次 Bug 猎人挑战", "🐞", "刷题", "total_bugs", 5, 150, 80),
-    ("interview_1", "初面体验", "完成 1 次模拟面试", "🎤", "面试", "total_interviews", 1, 80, 40),
-    ("interview_3", "面霸养成", "完成 3 次模拟面试", "🏆", "面试", "total_interviews", 3, 200, 100),
-    ("level_10", "十级小将", "角色等级达到 10 级", "🚀", "学习", "level_reach", 10, 100, 50),
-    ("level_30", "中级工程师", "角色等级达到 30 级", "💎", "学习", "level_reach", 30, 300, 150),
-    ("class_5", "全栈挑战者", "通关 5 个不同关卡", "🌐", "学习", "class_quests", 5, 120, 60),
+    # 课程进度
+    ("lesson_10", "启程", "完成 10 个课时", "📚", "学习", "completed_lessons", 10, 0, 0),
+    ("lesson_50", "过半", "完成 50 个课时", "📚", "学习", "completed_lessons", 50, 0, 0),
+    ("lesson_100", "全书通关", "完成 100 个课时", "📚", "学习", "completed_lessons", 100, 0, 0),
+    # 刷题能手
+    ("correct_10", "小试牛刀", "累计答对 10 道题", "🎯", "刷题", "total_correct", 10, 0, 0),
+    ("correct_50", "刷题达人", "累计答对 50 道题", "🎯", "刷题", "total_correct", 50, 0, 0),
+    ("correct_100", "百题斩", "累计答对 100 道题", "🎯", "刷题", "total_correct", 100, 0, 0),
+    # 闯关次数
+    ("first_step", "初入江湖", "第一次通关关卡", "🗡️", "学习", "total_quests", 1, 0, 0),
+    ("quest_10", "轻车熟路", "累计通关 10 次", "🗡️", "学习", "total_quests", 10, 0, 0),
+    ("quest_50", "身经百战", "累计通关 50 次", "🗡️", "学习", "total_quests", 50, 0, 0),
+    # 等级成长
+    ("level_5", "初级工程师", "等级达到 5 级", "🚀", "学习", "level_reach", 5, 0, 0),
+    ("level_8", "中级工程师", "等级达到 8 级", "🚀", "学习", "level_reach", 8, 0, 0),
+    ("level_13", "架构师", "等级达到 13 级（满级）", "🚀", "学习", "level_reach", 13, 0, 0),
+    # AI 陪练
+    ("chat_5", "话痨养成", "与 AI 导师对话 5 次", "💬", "社交", "total_chats", 5, 0, 0),
+    ("chat_20", "常驻对话", "与 AI 导师对话 20 次", "💬", "社交", "total_chats", 20, 0, 0),
+    ("chat_50", "导师挚友", "与 AI 导师对话 50 次", "💬", "社交", "total_chats", 50, 0, 0),
+    # Bug 猎人
+    ("bug_1", "Bug 猎手", "完成 1 次 Bug 猎人挑战", "🐛", "刷题", "total_bugs", 1, 0, 0),
+    ("bug_5", "Bug 终结者", "完成 5 次 Bug 猎人挑战", "🐛", "刷题", "total_bugs", 5, 0, 0),
+    ("bug_10", "代码清道夫", "完成 10 次 Bug 猎人挑战", "🐛", "刷题", "total_bugs", 10, 0, 0),
+    # 模拟面试
+    ("interview_1", "初面体验", "完成 1 次模拟面试", "🎤", "面试", "total_interviews", 1, 0, 0),
+    ("interview_3", "面霸养成", "完成 3 次模拟面试", "🎤", "面试", "total_interviews", 3, 0, 0),
+    ("interview_5", "Offer 收割机", "完成 5 次模拟面试", "🎤", "面试", "total_interviews", 5, 0, 0),
+    # 关卡收集
+    ("class_5", "全栈挑战者", "通关 5 个不同关卡", "🌐", "学习", "class_quests", 5, 0, 0),
+    ("class_10", "地图探索家", "通关 10 个不同关卡", "🌐", "学习", "class_quests", 10, 0, 0),
+    ("class_20", "大陆征服者", "通关 20 个不同关卡", "🌐", "学习", "class_quests", 20, 0, 0),
 ]
 
 # ================= 每日任务 =================
@@ -147,12 +170,21 @@ def seed_levels(db: Session) -> None:
 
 
 def seed_achievements(db: Session) -> None:
+    """成就用「有则更新、无则插入」，不是只补缺。
+
+    因为 2026-10-27 把成就重排成 8 家族 × 3 档、并把 exp_reward 全清零，
+    老库里同 code 的行还带着旧门槛和旧经验，只补缺会留下脏数据。
+    """
     for code, name, desc, icon, cat, ctype, cval, exp, coins in ACHIEVEMENTS:
-        if db.query(Achievement).filter(Achievement.code == code).first():
-            continue
-        db.add(Achievement(code=code, name=name, description=desc, icon=icon,
-                           category=cat, condition_type=ctype, condition_value=cval,
-                           exp_reward=exp, coin_reward=coins))
+        row = db.query(Achievement).filter(Achievement.code == code).first()
+        if row is None:
+            db.add(Achievement(code=code, name=name, description=desc, icon=icon,
+                               category=cat, condition_type=ctype, condition_value=cval,
+                               exp_reward=exp, coin_reward=coins))
+        else:
+            row.name, row.description, row.icon = name, desc, icon
+            row.category, row.condition_type = cat, ctype
+            row.condition_value, row.exp_reward = cval, exp
     db.commit()
 
 

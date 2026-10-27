@@ -44,8 +44,12 @@ export interface LevelItem {
   base_exp: number
   icon: string
   status: 'locked' | 'unlocked' | 'completed'
+  /** 星级 0~3（2026-10-27 起不再存分数） */
   best_score: number
   attempts: number
+  /** 该关绑定的知识小游戏玩法 */
+  mode: GameMode
+  mode_name: string
   completed: boolean
 }
 
@@ -54,6 +58,7 @@ export interface Scene {
   icon: string
   level_count: number
   completed_count: number
+  stars: number
 }
 
 export interface QuestQuestion {
@@ -183,8 +188,10 @@ export interface WrongItem {
   id: number
   question_id: number
   stem: string
+  type: string
   subject: string
   difficulty: number
+  options: string[]
   user_answer: unknown
   correct_answer: unknown
   explanation: string
@@ -247,6 +254,9 @@ export interface Profile {
   student: { student_id: string; real_name: string; nickname?: string; grade: string; class_code: string; seat_no: string }
   learn: { completed: number; total: number; pct: number }
   rank: Partial<LeaderMe>
+  /** 成就墙：8 个家族 × 铜/银/金三档 */
+  achievement_families: AchievementFamily[]
+  favorites_count: number
 }
 
 /** /api/code/run 的返回：沙箱执行结果 */
@@ -378,37 +388,94 @@ export interface LearnQuizResult {
   next_code: string | null
 }
 
-// ---------- 消消乐闯关 ----------
-export interface Match3Start {
+// ---------- 知识小游戏 ----------
+export type GameMode = 'match' | 'order' | 'speed' | 'grid'
+
+/** 连连看 / 网格消除：带 token 的卡片 */
+export interface GameCard {
+  k: string
+  text: string
+}
+
+export interface GameStart {
+  round_id: number
   level_code: string
   name: string
   subject: string
   difficulty: number
-  rows: number
-  cols: number
-  gem_types: number
-  moves: number
-  target_score: number
+  mode: GameMode
+  mode_name: string
+  rule: string
+  time_limit: number
+  payload: {
+    // match / grid
+    left?: GameCard[]
+    right?: GameCard[]
+    key?: Record<string, string>
+    // order
+    title?: string
+    steps?: GameCard[]
+    // speed
+    questions?: {
+      qid: number
+      stem: string
+      options: string[]
+      correct_index: number
+      explanation: string
+    }[]
+  }
 }
 
-export interface Match3Question {
+export interface GameSubmitResult {
+  passed: boolean
+  stars: number
+  accuracy: number
+  correct: number
+  total: number
+  detail: { key: string; correct: boolean }[]
+  answers: Record<string, string | number>
+  unlocked_next: string | null
+  best_stars: number
+}
+
+// ---------- 成就墙（家族 + 三档） ----------
+export interface AchievementTier {
+  code: string
+  tier: '铜' | '银' | '金'
+  tier_index: number
+  icon: string
+  name: string
+  description: string
+  target: number
+  unlocked: boolean
+}
+
+export interface AchievementFamily {
+  key: string
+  name: string
+  icon: string
+  category: string
+  metric: string
+  metric_label: string
+  current: number
+  tiers: AchievementTier[]
+  unlocked_count: number
+  next_target: number | null
+}
+
+/** 收藏的题目（错题本结构对齐，可复用同一套卡片） */
+export interface FavoriteItem {
+  id: number
   question_id: number
   stem: string
-  options: string[]
+  type: string
   subject: string
-  source: string
-}
-
-export interface Match3AnswerResult {
-  correct: boolean
-  correct_index: number
+  difficulty: number
+  options: string[]
+  correct_answer: unknown
   explanation: string
-}
-
-export interface Match3CompleteResult {
-  completed: boolean
-  exp_gained: number
-  unlocked_next: string | null
+  knowledge_point: string
+  created_at: string
 }
 
 // ---------- 面试题引导学习 ----------

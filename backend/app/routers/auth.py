@@ -81,7 +81,7 @@ def guest(db: Session = Depends(get_db)):
         db.refresh(user)
     if user.character is None:
         # 只注册过、没走完引导的账号：补一个默认角色，直接进首页。
-        char = Character(user_id=user.id, name="代码冒险者", identity="在校学生",
+        char = Character(user_id=user.id, name="冒险者", identity="在校学生",
                          class_key="backend", class_name=growth.class_info("backend")["name"],
                          level=1, exp=0, coins=100, hp=3, max_hp=3, onboarding_done=True)
         db.add(char)

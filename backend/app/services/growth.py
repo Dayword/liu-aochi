@@ -1,4 +1,10 @@
-"""成长体系核心逻辑：等级/经验/代码币/称号、成就判定、每日任务、排行榜。"""
+"""成长体系核心逻辑：等级/经验/称号、成就判定、每日任务、排行榜。
+
+⚠️ 经验规则（2026-10-27 定）：**全站经验只有「完成课时」一个来源**，每课 10 点。
+闯关答题、关卡通关、成就、每日任务、Bug 猎人、面试都不再发经验 ——
+`add_exp` 只剩 learn 路由一个调用方，改/加来源必须同步 `migrate_exp.py` 的重算口径，
+否则用户的 total_exp 会和「已完成课时 × 10」对不上。
+"""
 from datetime import date, datetime
 
 from sqlalchemy import func, or_
@@ -8,8 +14,12 @@ from ..models import (Achievement, Character, DailyTask, KnowledgeEntry,
                       Level, UserAchievement, UserDailyTask, UserLevelProgress,
                       User)
 
-# 等级标题（对应 实习生→初级→中级→高级→架构师）
-TITLES = [(1, "实习生"), (10, "初级工程师"), (30, "中级工程师"), (50, "高级工程师"), (80, "架构师")]
+# 等级标题：满级 13（135 课全部学完 = 架构师）
+TITLES = [(1, "实习生"), (5, "初级工程师"), (8, "中级工程师"),
+          (11, "高级工程师"), (13, "架构师")]
+
+# 每完成一个课时获得的经验
+LESSON_EXP = 10
 
 CLASSES = {
     "frontend": {"name": "前端法师", "emoji": "🧙", "desc": "掌控 HTML/CSS/JS 与框架魔法，构建精美界面",
@@ -67,8 +77,22 @@ def title_of(level: int) -> str:
 
 
 def exp_to_next(level: int) -> int:
-    """升到下一级所需经验（当前级内）。"""
-    return 100 + (level - 1) * 40
+    """升到下一级所需经验（当前级内）。
+
+    曲线按「135 课 × 10 点 = 1350 点刚好满级」反推：
+    Σ(50 + 10(k-1)) for k=1..12 = 1260，加上最后一级的一点点正好 13 级。
+    别随手改大 —— 改大之后没人能升到「架构师」，等级会变成一条死线。
+    """
+    return 50 + (level - 1) * 10
+
+
+def level_of_total_exp(total: int) -> tuple[int, int]:
+    """把累计经验折算成 (等级, 当前级内剩余经验)。"""
+    level, rest = 1, max(0, int(total))
+    while level < 99 and rest >= exp_to_next(level):
+        rest -= exp_to_next(level)
+        level += 1
+    return level, rest
 
 
 def add_exp(db: Session, char: Character, amount: int) -> int:
@@ -85,8 +109,75 @@ def add_exp(db: Session, char: Character, amount: int) -> int:
 
 
 # ---------- 成就 ----------
+# 成就按「家族」组织：每个家族铜 → 银 → 金三档递进，同一指标不同门槛。
+# 前端成就墙一个卡片 = 一个家族，点开弹窗看三档阶梯与当前进度。
+# (code, 档位名, 描述, 目标值) —— 档位顺序即 铜/银/金
+ACH_FAMILIES: list[dict] = [
+    {"key": "lesson", "name": "课程进度", "icon": "📚", "category": "学习",
+     "metric": "completed_lessons", "metric_label": "完成课时",
+     "tiers": [
+         ("lesson_10", "启程", "完成 10 个课时", 10),
+         ("lesson_50", "过半", "完成 50 个课时", 50),
+         ("lesson_100", "全书通关", "完成 100 个课时", 100),
+     ]},
+    {"key": "correct", "name": "刷题能手", "icon": "🎯", "category": "刷题",
+     "metric": "total_correct", "metric_label": "累计答对",
+     "tiers": [
+         ("correct_10", "小试牛刀", "累计答对 10 道题", 10),
+         ("correct_50", "刷题达人", "累计答对 50 道题", 50),
+         ("correct_100", "百题斩", "累计答对 100 道题", 100),
+     ]},
+    {"key": "quest", "name": "闯关次数", "icon": "🗡️", "category": "学习",
+     "metric": "total_quests", "metric_label": "通关次数",
+     "tiers": [
+         ("first_step", "初入江湖", "第一次通关关卡", 1),
+         ("quest_10", "轻车熟路", "累计通关 10 次", 10),
+         ("quest_50", "身经百战", "累计通关 50 次", 50),
+     ]},
+    {"key": "level", "name": "等级成长", "icon": "🚀", "category": "学习",
+     "metric": "level_reach", "metric_label": "当前等级",
+     "tiers": [
+         ("level_5", "初级工程师", "等级达到 5 级", 5),
+         ("level_8", "中级工程师", "等级达到 8 级", 8),
+         ("level_13", "架构师", "等级达到 13 级（满级）", 13),
+     ]},
+    {"key": "chat", "name": "AI 陪练", "icon": "💬", "category": "社交",
+     "metric": "total_chats", "metric_label": "对话次数",
+     "tiers": [
+         ("chat_5", "话痨养成", "与 AI 导师对话 5 次", 5),
+         ("chat_20", "常驻对话", "与 AI 导师对话 20 次", 20),
+         ("chat_50", "导师挚友", "与 AI 导师对话 50 次", 50),
+     ]},
+    {"key": "bug", "name": "Bug 猎人", "icon": "🐛", "category": "刷题",
+     "metric": "total_bugs", "metric_label": "排查次数",
+     "tiers": [
+         ("bug_1", "Bug 猎手", "完成 1 次 Bug 猎人挑战", 1),
+         ("bug_5", "Bug 终结者", "完成 5 次 Bug 猎人挑战", 5),
+         ("bug_10", "代码清道夫", "完成 10 次 Bug 猎人挑战", 10),
+     ]},
+    {"key": "interview", "name": "模拟面试", "icon": "🎤", "category": "面试",
+     "metric": "total_interviews", "metric_label": "面试场次",
+     "tiers": [
+         ("interview_1", "初面体验", "完成 1 次模拟面试", 1),
+         ("interview_3", "面霸养成", "完成 3 次模拟面试", 3),
+         ("interview_5", "Offer 收割机", "完成 5 次模拟面试", 5),
+     ]},
+    {"key": "class", "name": "关卡收集", "icon": "🌐", "category": "学习",
+     "metric": "class_quests", "metric_label": "已通关关卡",
+     "tiers": [
+         ("class_5", "全栈挑战者", "通关 5 个不同关卡", 5),
+         ("class_10", "地图探索家", "通关 10 个不同关卡", 10),
+         ("class_20", "大陆征服者", "通关 20 个不同关卡", 20),
+     ]},
+]
+
+TIER_NAMES = ["铜", "银", "金"]
+TIER_ICONS = ["🥉", "🥈", "🥇"]
+
+
 def _ach_trigger_type(db: Session, user: User) -> dict:
     char = user.character
+    from ..models import LearnProgress
     return {
         "level_reach": char.level,
         "total_exp": char.total_exp,
@@ -97,15 +188,20 @@ def _ach_trigger_type(db: Session, user: User) -> dict:
         "total_bugs": char.total_bugs,
         "total_interviews": char.total_interviews,
         "streak_days": char.streak_days,
-        "coins": char.coins,
         "class_quests": db.query(UserLevelProgress).filter(
             UserLevelProgress.user_id == user.id,
             UserLevelProgress.status == "completed").count(),
+        "completed_lessons": db.query(LearnProgress).filter(
+            LearnProgress.user_id == user.id,
+            LearnProgress.status == "completed").count(),
     }
 
 
 def check_achievements(db: Session, user: User) -> list[Achievement]:
-    """检查并发放新成就，返回本次新解锁列表。"""
+    """检查并发放新成就，返回本次新解锁列表。
+
+    ⚠️ 解锁**不发经验**：经验只来自完成课时（见文件头注释）。
+    """
     if user.character is None:
         return []
     unlocked = {ua.achievement_code for ua in db.query(UserAchievement).filter(
@@ -120,11 +216,41 @@ def check_achievements(db: Session, user: User) -> list[Achievement]:
             continue
         if value >= ach.condition_value:
             db.add(UserAchievement(user_id=user.id, achievement_code=ach.code))
-            add_exp(db, user.character, ach.exp_reward)
             new.append(ach)
     if new:
         db.commit()
     return new
+
+
+def achievement_families(db: Session, user: User) -> list[dict]:
+    """成就墙数据：按家族聚合，带铜/银/金三档、当前值与下一档目标。"""
+    triggers = _ach_trigger_type(db, user) if user.character else {}
+    unlocked = {ua.achievement_code for ua in db.query(UserAchievement).filter(
+        UserAchievement.user_id == user.id).all()}
+    out = []
+    for fam in ACH_FAMILIES:
+        current = int(triggers.get(fam["metric"], 0) or 0)
+        tiers, next_target, got = [], None, 0
+        for i, (code, name, desc, target) in enumerate(fam["tiers"]):
+            got_tier = code in unlocked
+            # 达标即视为解锁：成就记录要等下一次事件才补发（check_achievements），
+            # 只看记录会让刚达成的人看到「目标 N」，和上面的进度条自相矛盾。
+            reached = got_tier or current >= target
+            got += 1 if reached else 0
+            tiers.append({
+                "code": code, "tier": TIER_NAMES[i], "tier_index": i,
+                "icon": TIER_ICONS[i],
+                "name": name, "description": desc, "target": target,
+                "unlocked": reached,
+            })
+            if not reached and next_target is None:
+                next_target = target
+        out.append({"key": fam["key"], "name": fam["name"], "icon": fam["icon"],
+                    "category": fam["category"], "metric": fam["metric"],
+                    "metric_label": fam["metric_label"], "current": current,
+                    "tiers": tiers, "unlocked_count": got,
+                    "next_target": next_target})
+    return out
 
 
 # ---------- 每日任务 ----------
@@ -162,6 +288,11 @@ def report_daily_event(db: Session, user: User, event_type: str, amount: int = 1
 
 
 def claim_daily_task(db: Session, user: User, task_code: str) -> dict:
+    """领取每日任务。
+
+    ⚠️ 2026-10-27 起**不再发经验**（经验只来自完成课时），领取只记录状态。
+    任务系统本身先留着，等规则的其它经验来源确定后再接。
+    """
     ensure_daily_tasks(db, user)
     day = today_str()
     ut = db.query(UserDailyTask).filter(
@@ -171,12 +302,9 @@ def claim_daily_task(db: Session, user: User, task_code: str) -> dict:
         return {"ok": False, "msg": "任务尚未完成"}
     if ut.claimed:
         return {"ok": False, "msg": "已领取过奖励"}
-    task = db.query(DailyTask).filter(DailyTask.code == task_code).first()
-    if task:
-        add_exp(db, user.character, task.exp_reward)
     ut.claimed = True
     db.commit()
-    return {"ok": True, "msg": "领取成功", "exp": task.exp_reward if task else 0}
+    return {"ok": True, "msg": "已完成", "exp": 0}
 
 
 def unlock_levels(db: Session, user: User) -> None:

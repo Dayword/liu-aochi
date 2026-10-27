@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # ---------- 认证 ----------
 # 学号 11 位：前 4 位年级 / 5~9 位班级 / 后 2 位班内座号
 STUDENT_ID_RE = re.compile(r"\d{11}")
+# 姓名必须是中文：2~10 个汉字，允许少数民族姓名的间隔号「·」
+NAME_RE = re.compile(r"[\u4e00-\u9fa5·]{2,10}")
+NAME_RULE_TEXT = "姓名必须是中文（2~10 个汉字），不能填数字或英文"
 PASSWORD_RULE_TEXT = "密码需 8~64 位，且同时含大写字母、小写字母、数字、特殊符号"
 
 
@@ -44,8 +47,8 @@ class RegisterIn(BaseModel):
     @classmethod
     def _check_name(cls, v: str) -> str:
         v = (v or "").strip()
-        if not 1 <= len(v) <= 20:
-            raise ValueError("请填写姓名（1~20 个字）")
+        if not NAME_RE.fullmatch(v):
+            raise ValueError(NAME_RULE_TEXT)
         return v
 
     @field_validator("password")
@@ -430,52 +433,51 @@ class InterviewGuideHintOut(BaseModel):
     hint: str
 
 
-# ---------- 消消乐闯关 ----------
-class Match3StartIn(BaseModel):
+# ---------- 知识小游戏 ----------
+class GameStartIn(BaseModel):
     level_code: str
 
 
-class Match3StartOut(BaseModel):
+class GameStartOut(BaseModel):
+    round_id: int
     level_code: str
     name: str
     subject: str
     difficulty: int
-    rows: int
-    cols: int
-    gem_types: int
-    moves: int                 # 可用步数
-    target_score: int          # 过关目标分
+    mode: str                  # match / order / speed / grid
+    mode_name: str             # 中文玩法名
+    rule: str                  # 一句话规则
+    time_limit: int            # 秒，0 = 不限时
+    # 各玩法自己的题面，结构见 routers/games.py 顶部注释
+    payload: dict
 
 
-class Match3QuestionOut(BaseModel):
-    question_id: int
-    stem: str
-    options: list[str]
-    subject: str
-    source: str                # ai / seed
+class GameSubmitIn(BaseModel):
+    round_id: int
+    # match/grid: {"pairs": [{"l": token, "r": token}, ...]}
+    # order:      {"steps": [token, ...]}
+    # speed:      {"picks": [{"qid": 1, "picked": 0}, ...]}
+    data: dict
+    elapsed: int = 0           # 前端计时秒数，仅用于展示
 
 
-class Match3AnswerIn(BaseModel):
-    question_id: int
-    answer_index: int
+class GamePairResult(BaseModel):
+    """每对/每步的对错，前端用来高亮。"""
 
-
-class Match3AnswerOut(BaseModel):
+    key: str
     correct: bool
-    correct_index: int
-    explanation: str
 
 
-class Match3CompleteIn(BaseModel):
-    level_code: str
-    score: int
-    moves_used: int
-
-
-class Match3CompleteOut(BaseModel):
-    completed: bool
-    exp_gained: int
+class GameSubmitOut(BaseModel):
+    passed: bool
+    stars: int                 # 0~3
+    accuracy: float            # 0~100
+    correct: int
+    total: int
+    detail: list[GamePairResult] = []
+    answers: dict = {}         # 正确答案（错题讲解用）
     unlocked_next: Optional[str] = None
+    best_stars: int = 0
 
 
 # ---------- 成长 ----------
@@ -488,6 +490,32 @@ class AchievementOut(BaseModel):
     unlocked: bool
     unlocked_at: Optional[datetime] = None
     exp_reward: int = 0
+
+
+class AchievementTierOut(BaseModel):
+    code: str
+    tier: str                  # 铜 / 银 / 金
+    tier_index: int            # 0/1/2
+    name: str
+    description: str
+    target: int
+    unlocked: bool
+
+
+class AchievementFamilyOut(BaseModel):
+    """成就家族：一个主题下铜-银-金三档递进。"""
+
+    key: str
+    name: str
+    icon: str
+    category: str
+    metric: str                # 对应 Character 上的统计字段
+    metric_label: str          # 「完成课时」「累计答对」…
+    current: int               # 当前值
+    tiers: list[AchievementTierOut]
+    unlocked_count: int
+    next_target: Optional[int] = None   # 下一档目标，全解锁为 None
+
 
 
 class DailyTaskOut(BaseModel):
@@ -505,14 +533,32 @@ class WrongAnswerOut(BaseModel):
     id: int
     question_id: int
     stem: str
+    type: str = "choice"
     subject: str
     difficulty: int
+    options: list = []
     user_answer: Any
     correct_answer: Any
     explanation: str
     knowledge_point: str
     reason: str
     resolved: bool
+    created_at: datetime
+
+
+class FavoriteOut(BaseModel):
+    """收藏的题目（结构对齐错题本，前端可以复用同一套卡片）。"""
+
+    id: int
+    question_id: int
+    stem: str
+    type: str
+    subject: str
+    difficulty: int
+    options: list = []
+    correct_answer: Any = None
+    explanation: str = ""
+    knowledge_point: str = ""
     created_at: datetime
 
 
@@ -545,12 +591,17 @@ class ProfileOut(BaseModel):
     student: dict = {}
     learn: dict = {}
     rank: dict = {}
+    # 成就墙（2026-10-27）：按家族聚合的铜/银/金阶梯
+    achievement_families: list[AchievementFamilyOut] = []
+    favorites_count: int = 0
 
 
 class ProfileUpdateIn(BaseModel):
-    """个人资料修改：字段都可选，只改传上来的那几项。
+    """个人资料修改。
 
-    学号改动会连带改变年级 / 班级 / 座号与排行榜分组，查重与格式化在路由里做。
+    ⚠️ 学号与姓名**注册后不可修改**（要求见 2026-10-27 需求）：
+    这里保留字段只为兼容老账号「首次绑定」（库里为空时才允许写一次），
+    已有值再传会被路由明确拒绝。
     """
     real_name: Optional[str] = None
     nickname: Optional[str] = None

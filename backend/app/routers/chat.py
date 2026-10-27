@@ -123,10 +123,10 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
         exp_gained = 0
         if user and user.character:
             user.character.total_chats += 1
-            growth.add_exp(db, user.character, 5)
+            # 经验只来自完成课时（services/growth.py 文件头），对话不发经验
             growth.report_daily_event(db, user, "chat")
             new_ach = growth.check_achievements(db, user)
-            exp_gained = 5 + sum(a.exp_reward for a in new_ach)
+            exp_gained = 0
         ai.remember_quiz(db, user_id, quiz)
         db.commit()
         if user:

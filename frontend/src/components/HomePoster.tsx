@@ -106,7 +106,7 @@ export default function HomePoster({
       <div className="relative flex items-center gap-3 p-3.5">
         <div className="min-w-0 flex-1">
           <div className="text-[9px] tracking-[0.2em] text-indigo-200/80 uppercase">
-            Code Adventurer
+            CodeRealm
           </div>
           <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
             <span className="text-[19px] font-bold text-white leading-tight drop-shadow">

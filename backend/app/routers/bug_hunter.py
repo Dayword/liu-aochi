@@ -48,7 +48,8 @@ def submit(body: BugSubmitIn, db: Session = Depends(get_db),
     accuracy, speed_ms, quality = result["accuracy"], result["speed_ms"], result["quality"]
     score = int(accuracy * 2 + quality * 0.8 + max(0, 30 - speed_ms / 100))
     passed = accuracy >= 100
-    exp_gain = c.base_exp if passed else int(c.base_exp * accuracy / 200)
+    # 经验只来自完成课时，这里不再发（exp_gained 字段保留但恒 0，前端已不展示）
+    exp_gain = 0
 
     char = user.character
     char.total_bugs += 1

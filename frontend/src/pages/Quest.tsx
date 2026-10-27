@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { App, Button, Input, Progress } from 'antd'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../api/client'
+import FavStar from '../components/FavStar'
+import { useFavorites } from '../store/favorites'
 import { useAuth } from '../store/auth'
 import type { AnswerResult, QuestQuestion, Settlement } from '../types'
 
@@ -11,6 +13,7 @@ export default function Quest() {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { refreshCharacter } = useAuth()
+  const { ids: favIds, toggle: toggleFav } = useFavorites()
 
   const [runId, setRunId] = useState<string | null>(null)
   const [levelName, setLevelName] = useState('')
@@ -131,8 +134,11 @@ export default function Quest() {
             </div>
           </div>
 
-          <div className="flex justify-center gap-6 text-sm mb-6">
-            <span className="text-purple-600">✨ +{settle.total_exp} EXP</span>
+          <div className="flex justify-center gap-3 text-[11px] text-slate-400 mb-6">
+            <span>经验只来自完成课时，答题不计经验</span>
+            <button onClick={() => navigate('/wrong')} className="text-indigo-600">
+              去错题本 →
+            </button>
           </div>
 
           <AnimatePresence>
@@ -221,16 +227,25 @@ export default function Quest() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="mb-2 flex items-center gap-2 text-xs">
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
-                  {question.subject}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                  难度 ★{question.difficulty}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                  {question.type === 'choice' ? '选择题' : question.type === 'blank' ? '填空题' : question.type === 'code' ? '编程题' : '简答题'}
-                </span>
+              <div className="mb-2 flex items-start gap-2 text-xs">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600">
+                    {question.subject}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    难度 ★{question.difficulty}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                    {question.type === 'choice' ? '选择题' : question.type === 'blank' ? '填空题' : question.type === 'code' ? '编程题' : '简答题'}
+                  </span>
+                </div>
+                {/* 题目右侧的收藏按钮 */}
+                <FavStar
+                  qid={question.question_id}
+                  favored={favIds.has(question.question_id)}
+                  onToggle={toggleFav}
+                  size={18}
+                />
               </div>
               <div className="text-lg text-slate-800 leading-relaxed mb-5 whitespace-pre-wrap">
                 {question.stem}
@@ -301,9 +316,11 @@ export default function Quest() {
                 >
                   <div className={`font-medium mb-2 ${result.correct ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {result.correct ? '✅ 回答正确！' : '❌ 回答错误'}
-                    <span className="ml-3 text-xs text-slate-500">
-                      +{result.exp_gained} EXP
-                    </span>
+                    {!result.correct && (
+                      <span className="ml-2 text-[11px] font-normal text-slate-500">
+                        已自动收进错题本
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-slate-700 leading-relaxed">
                     <span className="text-indigo-600">考点：</span>

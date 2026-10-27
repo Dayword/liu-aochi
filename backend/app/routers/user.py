@@ -7,7 +7,8 @@ from ..models import (Achievement, Character, DailyTask, LearnProgress, Level,
                       User, UserAchievement, UserDailyTask,
                       UserLevelProgress, WrongAnswer)
 from ..schemas import (CharacterOut, ClassInfo, LevelOut, ProfileOut,
-                       ProfileUpdateIn, RadarOut, STUDENT_ID_RE)
+                       ProfileUpdateIn, RadarOut, NAME_RE,
+                       NAME_RULE_TEXT, STUDENT_ID_RE)
 from ..security import get_current_user
 from ..services import growth
 
@@ -87,6 +88,9 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
         LearnProgress.status == "completed").count()
     # 排名：班级 + 年级（没有学号的老账号返回空 dict）
     lb = growth.leaderboard(db, scope="class", me=user, limit=1)
+    from ..models import QuestionFavorite
+    fav_count = db.query(QuestionFavorite).filter(
+        QuestionFavorite.user_id == user.id).count()
     return ProfileOut(character=_char_out(char), achievements=achievements,
                       daily_tasks=daily_tasks, wrong_count=wrong_count,
                       radar=RadarOut(**radar), recent_levels=recent,
@@ -97,33 +101,33 @@ def profile(db: Session = Depends(get_db), user: User = Depends(get_current_user
                                "seat_no": user.seat_no},
                       learn={"completed": done_lessons, "total": total_lessons,
                              "pct": round(done_lessons * 100 / total_lessons, 1) if total_lessons else 0},
-                      rank=lb.get("me", {}))
+                      rank=lb.get("me", {}),
+                      achievement_families=growth.achievement_families(db, user),
+                      favorites_count=fav_count)
 
 
 @router.patch("/profile")
 def update_profile(body: ProfileUpdateIn, db: Session = Depends(get_db),
                    user: User = Depends(get_current_user)):
-    """修改个人资料（姓名 / 昵称 / 学号 / 身份）。
+    """修改个人资料。
 
-    - 学号是 11 位，改完年级、班级、座号随之变化，排行榜分组也跟着变，所以先查重；
-      新注册账号的 username 就是学号，这里一起同步，避免「改了学号、旧学号仍能登」。
-    - 老账号 username 是原来的中文名，保持不动（双轨登录仍可用）。
-    - 身份存在 Character 上（默认「在校学生」），创建角色时自动带出来。
+    ⚠️ 2026-10-27 规则：**学号与姓名注册后不可修改**。
+    - 已有值 → 传上来也直接 400，避免前端绕过校验悄悄改掉；
+    - 只有库里为空时才允许写一次：这是给「改名之前注册的老账号」留的
+      首次绑定口子（否则他们永远进不了班级排行榜）。
+    - 昵称 / 身份随时可改。
     """
     if body.real_name is not None:
         name = body.real_name.strip()
-        if not 1 <= len(name) <= 20:
-            raise HTTPException(400, "姓名需 1~20 个字")
+        if user.real_name and name != user.real_name:
+            raise HTTPException(400, "姓名注册后不可修改，如需更正请联系老师")
+        if not NAME_RE.fullmatch(name):
+            raise HTTPException(400, NAME_RULE_TEXT)
         user.real_name = name
-    if body.nickname is not None:
-        nick = body.nickname.strip()
-        if len(nick) > 20:
-            raise HTTPException(400, "昵称最多 20 个字")
-        user.nickname = nick or user.real_name or "冒险者"
-        if user.character:
-            user.character.name = user.nickname
     if body.student_id is not None:
         sid = body.student_id.strip()
+        if user.student_id and sid != user.student_id:
+            raise HTTPException(400, "学号注册后不可修改，如需更正请联系老师")
         if not STUDENT_ID_RE.fullmatch(sid):
             raise HTTPException(400, "学号必须是 11 位数字")
         if sid != user.student_id:
@@ -134,6 +138,13 @@ def update_profile(body: ProfileUpdateIn, db: Session = Depends(get_db),
             if user.username == user.student_id:   # 新账号：用户名即学号，同步
                 user.username = sid
             user.student_id = sid
+    if body.nickname is not None:
+        nick = body.nickname.strip()
+        if len(nick) > 20:
+            raise HTTPException(400, "昵称最多 20 个字")
+        user.nickname = nick or user.real_name or "冒险者"
+        if user.character:
+            user.character.name = user.nickname
     if body.identity is not None:
         if body.identity not in IDENTITY_OPTIONS:
             raise HTTPException(400, "身份只能是「在校学生」或「求职中」")

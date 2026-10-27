@@ -315,6 +315,10 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
   const [speed, setSpeed] = useState(1)
   const [voiceName, setVoiceName] = useState('')
   const [speaking, setSpeaking] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
+  // 是否已经用一次真实手势「解锁」过语音。iOS Safari 要求第一次 speak()
+  // 必须发生在用户点击里，之后由定时器驱动的后续句子才能念出来。
+  const [unlocked, setUnlocked] = useState(false)
 
   const tRef = useRef(0)
   const sceneRef = useRef(0)
@@ -350,7 +354,26 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
     return () => window.speechSynthesis.removeEventListener('voiceschanged', sync)
   }, [])
 
-  const speechOk = typeof window !== 'undefined' && !!window.speechSynthesis && !!voiceName
+  // 手机浏览器切到后台会把语音挂起，回来要手动 resume
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === 'visible' && playing) {
+        window.speechSynthesis?.resume()
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [playing])
+
+  /**
+   * ⚠️ 关键修复（2026-10-27，手机端「开不了声音」）：
+   * 旧实现要求 `voiceName` 有值才允许念，而**移动端 getVoices() 经常返回空数组**
+   * （Android Chrome 首次必然为空，iOS 要等 voiceschanged），于是 speechOk 恒为 false，
+   * 按钮永远显示「配音关」，点也点不亮。
+   * 实际上没有 voice 对象也能 speak —— 浏览器会用默认语音，只要 lang 给对。
+   * 所以这里只判断 API 是否存在，音色只用来优先挑中文。
+   */
+  const speechOk = typeof window !== 'undefined' && !!window.speechSynthesis
   const canSpeak = speechOk && voiceOn
 
   /** 主动停止：先推进 token，让被 cancel 的旧句子稍后到达的 onend 失效 */
@@ -375,7 +398,10 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
       }
       const my = speakToken.current + 1
       speakToken.current = my
-      window.speechSynthesis.cancel()
+      const synth = window.speechSynthesis
+      // iOS 上 cancel() 紧跟着 speak() 会把新句子一起丢掉，所以只有在真的在念时才 cancel，
+      // 且 cancel 之后等一帧再开口。
+      if (synth.speaking || synth.pending) synth.cancel()
       speakingRef.current = true
       chunkRef.current = from
       setSpeaking(true)
@@ -401,16 +427,48 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
         u.rate = 1.02 * speed
         u.pitch = 1.05
         u.onend = () => speakAt(k + 1)
-        u.onerror = () => {
+        u.onerror = (ev) => {
+          // not-allowed / audio-busy 在移动端很常见：多半是还没拿到手势授权，
+          // 或者系统音频被别的 App 占着。给出可操作的提示，别静默失败。
+          const err = (ev as SpeechSynthesisErrorEvent)?.error || ''
+          if (err === 'not-allowed' || err === 'audio-busy') {
+            setVoiceError('浏览器拦住了语音，点一下「🔊 声音」按钮再试')
+          } else if (err && err !== 'interrupted' && err !== 'canceled') {
+            setVoiceError(`语音出错：${err}`)
+          }
           if (my === speakToken.current) finish()
         }
-        window.speechSynthesis.speak(u)
+        synth.resume() // 有的浏览器会自己挂起
+        synth.speak(u)
       }
 
-      speakAt(Math.min(from, chunks.length - 1))
+      // 等一帧：给 cancel 一个落地的机会，iOS 才不会吞掉第一句
+      window.setTimeout(() => speakAt(Math.min(from, chunks.length - 1)), 60)
     },
     [scenes, speed, canSpeak],
   )
+
+  /**
+   * 解锁语音：必须在用户点击里同步调一次 speak()，否则 iOS / Android Chrome
+   * 会拒掉后续所有由定时器触发的语音 —— 表现就是「点了播放没声音」。
+   * 这里念一句几乎无声的「。」，唯一作用是拿到音频焦点。
+   */
+  const unlockAudio = useCallback(() => {
+    if (speechOk !== true) return
+    try {
+      const synth = window.speechSynthesis
+      synth.resume()
+      const u = new SpeechSynthesisUtterance('。')
+      u.lang = 'zh-CN'
+      u.volume = 0.01
+      u.rate = 2
+      synth.speak(u)
+      setUnlocked(true)
+      setVoiceError('')
+    } catch {
+      setVoiceError('这个浏览器不支持语音朗读，只能看字幕')
+    }
+  }, [speechOk])
 
   // 换课就重置
   useEffect(() => {
@@ -481,6 +539,8 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
 
   const toggle = () => {
     if (!playing) {
+      // iOS：第一次必须在点击里开口，不然之后定时器念的都会被拦
+      if (!unlocked) unlockAudio()
       // 已经播到结尾：点击「重播」要从头开始，否则会卡在最后一帧
       const atEnd = sceneRef.current === scenes.length - 1 && tRef.current >= durAt(sceneRef.current) - 1
       if (atEnd) {
@@ -526,6 +586,10 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
   }
 
   if (!scenes.length) return null
+
+  // 手机端给一条「没声音怎么排查」的提示（桌面端不需要，占地方）
+  const isTouch =
+    typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
   const elapsed = scenes.slice(0, sceneIdx).reduce((acc, _, i) => acc + durAt(i), 0) + t
   const scene = scenes[sceneIdx]
@@ -626,19 +690,31 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
               onClick={() => {
                 const next = !voiceOn
                 setVoiceOn(next)
-                if (!next) stopSpeech()
-                else if (playing && !spokenDone.current.has(sceneRef.current)) {
-                  speakScene(sceneRef.current, chunkRef.current)
+                if (!next) {
+                  stopSpeech()
+                } else {
+                  // 打开声音也要算一次手势：先解锁，再接着念
+                  unlockAudio()
+                  if (playing && !spokenDone.current.has(sceneRef.current)) {
+                    speakScene(sceneRef.current, chunkRef.current)
+                  }
                 }
               }}
+              disabled={!speechOk}
               className={`rounded-lg border px-2 py-1 text-[11px] ${
                 voiceOn && speechOk
                   ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
                   : 'border-slate-200 text-slate-400'
               }`}
-              title={speechOk ? `当前音色：${voiceName}` : '这个浏览器没有中文语音，只能看字幕'}
+              title={
+                speechOk
+                  ? voiceName
+                    ? `当前音色：${voiceName}`
+                    : '系统未提供中文音色，仍会用默认语音朗读'
+                  : '这个浏览器不支持语音朗读，只能看字幕'
+              }
             >
-              {voiceOn && speechOk ? '🔊 配音开' : '🔇 配音关'}
+              {!speechOk ? '🔇 无语音' : voiceOn ? '🔊 声音开' : '🔇 开声音'}
             </button>
             <button
               onClick={() => setSpeed((s) => (s === 1 ? 1.25 : s === 1.25 ? 1.5 : 1))}
@@ -647,6 +723,13 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
               {speed}x
             </button>
           </div>
+
+          {(voiceError || isTouch) && (
+            <div className="px-4 pb-1 text-[10.5px] leading-relaxed text-amber-600">
+              {voiceError ||
+                '手机听不到声音？先点一下「🔊 声音开」，iPhone 还要确认侧边静音开关没有打开'}
+            </div>
+          )}
 
           <div className="flex items-center gap-1.5 px-4 pb-3">
             {scenes.map((_, i) => {

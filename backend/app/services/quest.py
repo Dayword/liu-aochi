@@ -103,24 +103,21 @@ def answer_question(db: Session, user: User, run_id: str, question_id: int,
     char = user.character
     run["index"] += 1
 
+    # 经验只来自完成课时（services/growth.py 文件头），答题只记对错
     exp_gained = 0
     if correct:
         run["correct"] += 1
-        exp_gained = 8 + q.difficulty * 4
         char.total_correct += 1
     else:
         run["wrong"] += 1
-        exp_gained = 2
         char.total_wrong += 1
         reason = _classify_wrong(q, answer)
         db.add(WrongAnswer(user_id=user.id, question_id=q.id,
                            user_answer=_fmt(answer), reason=reason))
         run["wrong_details"].append({"question_id": q.id, "reason": reason})
 
-    run["exp"] += exp_gained
     run["answered"].add(q.id)
 
-    growth.add_exp(db, char, exp_gained)
     growth.report_daily_event(db, user, "quest_questions")
     db.commit()
     growth.rebuild_leaderboard(db, user)
@@ -165,9 +162,6 @@ def settle(db: Session, user: User, run_id: str, with_ai_analysis: bool = False)
         progress.status = "completed"
         progress.best_score = max(progress.best_score, correct)
         progress.completed_at = datetime.now()
-        bonus_exp = level.base_exp if level else 50
-        if accuracy == 100:
-            bonus_exp += 30
         char.total_quests += 1
         growth.report_daily_event(db, user, "quest_pass")
         growth.unlock_levels(db, user)

@@ -1,11 +1,11 @@
-"""成长相关路由：错题本、成就墙、每日任务、排行榜、能力雷达。"""
+"""成长相关路由：错题本、收藏、成就墙、每日任务、排行榜、能力雷达。"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Question, User, WrongAnswer
-from ..schemas import (AchievementOut, DailyTaskOut, LeaderboardEntry,
-                       WrongAnswerOut)
+from ..models import Question, QuestionFavorite, User, WrongAnswer
+from ..schemas import (AchievementFamilyOut, AchievementOut, DailyTaskOut,
+                       FavoriteOut, LeaderboardEntry, WrongAnswerOut)
 from ..security import get_current_user
 from ..services import growth
 
@@ -15,8 +15,6 @@ router = APIRouter(prefix="/api/growth", tags=["growth"])
 @router.get("/achievements", response_model=list[AchievementOut])
 def achievements(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     from ..models import Achievement, UserAchievement
-    unlocked = {ua.achievement_code for ua in db.query(UserAchievement).filter(
-        UserAchievement.user_id == user.id).all()}
     at_map = {ua.achievement_code: ua for ua in db.query(UserAchievement).filter(
         UserAchievement.user_id == user.id).all()}
     out = []
@@ -24,10 +22,18 @@ def achievements(db: Session = Depends(get_db), user: User = Depends(get_current
         ua = at_map.get(ach.code)
         out.append({"code": ach.code, "name": ach.name, "description": ach.description,
                     "icon": ach.icon, "category": ach.category,
-                    "unlocked": ach.code in unlocked,
+                    "unlocked": ua is not None,
                     "unlocked_at": ua.unlocked_at if ua else None,
                     "exp_reward": ach.exp_reward})
     return out
+
+
+@router.get("/achievement-families", response_model=list[AchievementFamilyOut])
+def achievement_families(db: Session = Depends(get_db),
+                         user: User = Depends(get_current_user)):
+    """成就墙：8 个家族 × 铜/银/金三档，带当前进度。"""
+    growth.ensure_character(db, user)
+    return growth.achievement_families(db, user)
 
 
 @router.get("/daily-tasks", response_model=list[DailyTaskOut])
@@ -69,7 +75,8 @@ def wrong_book(db: Session = Depends(get_db), user: User = Depends(get_current_u
         ans = q.answer or {}
         correct_answer = ans.get("correct_index") if q.type == "choice" else ans.get("answer", "")
         out.append({"id": w.id, "question_id": q.id, "stem": q.stem,
-                    "subject": q.subject, "difficulty": q.difficulty,
+                    "type": q.type, "subject": q.subject, "difficulty": q.difficulty,
+                    "options": q.options or [],
                     "user_answer": w.user_answer, "correct_answer": correct_answer,
                     "explanation": q.explanation, "knowledge_point": q.knowledge_point,
                     "reason": w.reason, "resolved": w.resolved,
@@ -86,6 +93,69 @@ def resolve_wrong(wid: int, db: Session = Depends(get_db),
     w.resolved = True
     db.commit()
     return {"ok": True}
+
+
+@router.delete("/wrong-book/{wid}")
+def delete_wrong(wid: int, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    """手动从错题本移除（答对了但不想留着的题）。"""
+    w = db.get(WrongAnswer, wid)
+    if not w or w.user_id != user.id:
+        raise HTTPException(404, "记录不存在")
+    db.delete(w)
+    db.commit()
+    return {"ok": True}
+
+
+# ---------- 题目收藏 ----------
+def _fav_out(q: Question, fav_id: int, created_at) -> dict:
+    ans = q.answer or {}
+    correct = ans.get("correct_index") if q.type == "choice" else ans.get("answer", "")
+    return {"id": fav_id, "question_id": q.id, "stem": q.stem, "type": q.type,
+            "subject": q.subject, "difficulty": q.difficulty,
+            "options": q.options or [], "correct_answer": correct,
+            "explanation": q.explanation or "",
+            "knowledge_point": q.knowledge_point or "",
+            "created_at": created_at}
+
+
+@router.get("/favorites", response_model=list[FavoriteOut])
+def favorites(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = db.query(QuestionFavorite).filter(
+        QuestionFavorite.user_id == user.id).order_by(
+        QuestionFavorite.id.desc()).all()
+    out = []
+    for f in rows:
+        q = db.get(Question, f.question_id)
+        if q:
+            out.append(_fav_out(q, f.id, f.created_at))
+    return out
+
+
+@router.get("/favorites/ids")
+def favorite_ids(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """前端批量标星用：只回题目 id，省一次全量拉取。"""
+    return [qid for (qid,) in db.query(QuestionFavorite.question_id).filter(
+        QuestionFavorite.user_id == user.id).all()]
+
+
+@router.post("/favorites/{qid}")
+def toggle_favorite(qid: int, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """收藏 / 取消收藏（同一个接口切换，前端不用记状态）。"""
+    q = db.get(Question, qid)
+    if not q:
+        raise HTTPException(404, "题目不存在")
+    row = db.query(QuestionFavorite).filter(
+        QuestionFavorite.user_id == user.id,
+        QuestionFavorite.question_id == qid).first()
+    if row:
+        db.delete(row)
+        db.commit()
+        return {"favored": False}
+    db.add(QuestionFavorite(user_id=user.id, question_id=qid))
+    db.commit()
+    return {"favored": True}
 
 
 @router.get("/leaderboard")

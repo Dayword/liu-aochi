@@ -18,11 +18,12 @@ _ADDED_COLUMNS = {
     ],
 }
 
-# 已下线的种子数据：签到任务、代码币/连续签到成就。
+# 已下线的种子数据：签到任务、代码币/连续签到成就、旧等级成就。
 # 种子函数只负责「缺了补上」，不会删旧行，所以这里显式清理一次。
 _REMOVED_SEEDS = {
     "daily_tasks": ["signin"],
-    "achievements": ["coin_500", "streak_3", "streak_7"],
+    # level_10/level_30 随「满级 13」的曲线调整下线，改用 level_5/8/13 三档
+    "achievements": ["coin_500", "streak_3", "streak_7", "level_10", "level_30"],
 }
 
 
