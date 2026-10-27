@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { App, Button, Drawer, Input, Progress, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import { api } from '../api/client'
+import KnowledgeSketch from '../components/KnowledgeSketch'
 import LessonVideo from '../components/LessonVideo'
 import ProjectField from '../components/ProjectField'
 import type {
@@ -448,6 +449,25 @@ export default function Learn() {
             {detail.status === 'completed' && <span className="text-xs text-emerald-600">✓ 已掌握</span>}
           </div>
           <p className="text-slate-500 text-[11px] mt-1">{detail.summary}</p>
+
+          {/* 一句话 + 手绘知识图：一进来先知道「这节课讲什么、它在知识网的哪儿」 */}
+          <div className="mt-2.5 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+            <div className="text-[10px] font-medium tracking-wide text-indigo-400">
+              一句话说清这节课
+            </div>
+            <p className="mt-1 text-[13px] leading-relaxed text-slate-800">
+              {detail.oneliner || detail.summary}
+            </p>
+          </div>
+
+          {detail.sketch && (
+            <KnowledgeSketch
+              sketch={detail.sketch}
+              onOpen={(c) => {
+                if (c !== detail.code) void loadDetail(c)
+              }}
+            />
+          )}
 
           {/* 讲解视频：分镜脚本由后端构建期生成，缺脚本时组件自己返回 null */}
           {detail.video && detail.video.scenes.length > 0 && (

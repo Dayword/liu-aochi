@@ -1,5 +1,28 @@
 // 类型定义（与后端 schema 对齐）
 
+/** 手绘知识图：节点 kind 决定颜色与线型，zone 决定挂在中心的哪个方位 */
+export type SketchKind = 'core' | 'prev' | 'next' | 'side'
+
+export interface SketchNode {
+  id: string
+  label: string
+  kind: SketchKind
+  zone: string
+  code?: string
+}
+
+export interface SketchEdge {
+  a: string
+  b: string
+  label?: string
+}
+
+export interface LessonSketch {
+  center: string
+  nodes: SketchNode[]
+  edges: SketchEdge[]
+}
+
 export interface Character {
   name: string
   identity: string
@@ -330,6 +353,10 @@ export interface LearnPointDetail extends LearnPointBrief {
   quizzes: LearnQuizItem[]
   quiz_state: Record<string, { correct?: boolean; seen?: boolean }>
   next_code: string | null
+  /** 本课开头的一句话：讲什么 + 学完能做什么；没铺到的课为空，前端退回 summary */
+  oneliner?: string
+  /** 手绘知识图：本课知识点、以及和前后课/跨科目的联系；没铺到就没有 */
+  sketch?: LessonSketch | null
   /** 讲解视频分镜脚本；后端构建期生成，缺失时前端不显示视频入口 */
   video?: LearnVideo | null
   /** 「项目实地」：本课知识点在鸭先知 RAG 项目里的落点；缺失时整块不渲染 */

@@ -333,6 +333,28 @@ class LearnQuizResult(BaseModel):
     next_code: Optional[str] = None
 
 
+class SketchNode(BaseModel):
+    """手绘知识图上的一个节点。"""
+
+    id: str
+    label: str
+    kind: str            # core 本课知识点 / prev 前置课 / next 后续课 / side 跨科目旁支
+    zone: str            # t tr r br b bl l tl —— 挂在中心的哪个方向
+    code: str = ""       # 非空 = 可以点，跳到那一课
+
+
+class SketchEdge(BaseModel):
+    a: str               # 起点节点 id；"center" 表示中心节点
+    b: str
+    label: str = ""      # 关系词，例如「条件为真才进」
+
+
+class LessonSketch(BaseModel):
+    center: str
+    nodes: list[SketchNode]
+    edges: list[SketchEdge]
+
+
 class LearnPointDetail(LearnPointBrief):
     definition: str
     plain: str
@@ -349,6 +371,11 @@ class LearnPointDetail(LearnPointBrief):
     quizzes: list[LearnQuizItem] = []
     quiz_state: dict = {}
     next_code: Optional[str] = None   # 课程里的下一个知识点（用于「已完成」时的跳转）
+    # 本课开头的一句话：讲什么 + 学完能做什么。
+    # 没铺到的课留空，前端自动退回 summary（见 seed/learn_sketch.py 的覆盖进度说明）。
+    oneliner: str = ""
+    # 手绘知识图：本课知识点之间、以及和前后课/跨科目的联系。没铺到就是 None。
+    sketch: Optional[LessonSketch] = None
     # 讲解视频的分镜脚本；由 build_lesson_videos.py 在构建期生成，
     # 缺失（比如还没跑过构建脚本）时为 None，前端就不显示视频入口。
     video: Optional[dict] = None

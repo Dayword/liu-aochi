@@ -21,6 +21,7 @@ from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        LearnQuizResult, LearnQuizSubmitIn)
 from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
+from ..seed.learn_sketch import sketch_of
 from ..services import growth, sql_runner
 from ..services.code_runner import run_python
 
@@ -28,6 +29,29 @@ from ..services.code_runner import run_python
 # ⚠️ 重新跑 build_lesson_videos.py 之后要重启后端才生效 —— 和改 seed 一样，
 #    reload 不会因为一个 json 变化就重载。
 VIDEOS: dict = load_videos()
+
+
+def _sketch(code: str) -> dict | None:
+    """取某课的手绘知识图；没铺到就返回 None（前端不渲染这块）。
+
+    节点上如果写了不存在的课程 code，就把「可点」摘掉而不是整张图丢掉 ——
+    图画错了不该让学生看到一个空区块。
+    """
+    data = sketch_of(code)
+    if not data:
+        return None
+    nodes = []
+    for n in data["nodes"]:
+        node = dict(n)
+        if node.get("code") and node["code"] not in BY_CODE:
+            node["code"] = ""
+        nodes.append(node)
+    return {"center": data["center"], "nodes": nodes, "edges": data["edges"]}
+
+
+def _oneliner(code: str) -> str:
+    """本课开头的一句话；没铺到的课返回空串，前端退回 summary。"""
+    return (sketch_of(code) or {}).get("oneliner", "") or ""
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -328,6 +352,8 @@ def point_detail(code: str, db: Session = Depends(get_db),
         quizzes=quizzes,
         quiz_state=(prog.quiz_json or {}) if prog else {},
         next_code=_next_unlocked(db, user, point["code"]),
+        oneliner=_oneliner(point["code"]),
+        sketch=_sketch(point["code"]),
         video=VIDEOS.get(point["code"]),
         project=point.get("project"),
     )

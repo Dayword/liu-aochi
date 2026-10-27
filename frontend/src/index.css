@@ -4,6 +4,10 @@
 
 :root {
   color-scheme: light;
+  /* 手绘知识图用的「手写感」字体栈：优先楷体/行楷，取不到就退回系统字体。
+     不引外部字体文件——135 张图不值得为它加几百 KB。 */
+  --sketch-font: 'Xingkai SC', 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体',
+    'Songti SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
 }
 
 body {
