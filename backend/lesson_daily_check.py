@@ -46,12 +46,26 @@ def main() -> int:
     today = date.today()
     yesterday = today - timedelta(days=1)
 
+    # 身份以**学号**为准（登录早改成学号了），username 列里的旧名只作老账号兜底。
+    keys = [settings.AUTO_LOGIN_STUDENT_ID, settings.AUTO_LOGIN_USERNAME]
+    for i, a in enumerate(sys.argv):
+        if a in ("--student", "--user") and i + 1 < len(sys.argv):
+            keys.insert(0, sys.argv[i + 1])
+
     db = SessionLocal()
     try:
-        user = db.query(User).filter(User.username == settings.AUTO_LOGIN_USERNAME).first()
+        user = None
+        for k in keys:
+            if not k:
+                continue
+            user = (db.query(User).filter(User.student_id == k).first()
+                    or db.query(User).filter(User.username == k).first())
+            if user is not None:
+                break
         if user is None:
-            print(f"❌ 找不到主账号「{settings.AUTO_LOGIN_USERNAME}」，无法统计。")
-            print("   检查 .env / app/config.py 的 AUTO_LOGIN_USERNAME 是否被改过。")
+            print(f"❌ 找不到主账号（学号 {settings.AUTO_LOGIN_STUDENT_ID}"
+                  f" / 用户名 {settings.AUTO_LOGIN_USERNAME}），无法统计。")
+            print("   检查 .env / app/config.py 的 AUTO_LOGIN_STUDENT_ID 是否被改过。")
             return 2
 
         rows = db.query(LearnProgress).filter(LearnProgress.user_id == user.id).all()
@@ -93,8 +107,15 @@ def main() -> int:
         verdict, label = "zero", "没有进展"
 
     # ---------- 输出 ----------
-    print(f"【引导式学习 · 每日结算】{today.isoformat()}（账号：{user.username}）")
+    who = f"学号 {user.student_id}" if user.student_id else f"用户名 {user.username}"
+    name = user.real_name or user.nickname or user.username
+    print(f"【引导式学习 · 每日结算】{today.isoformat()}（{name} · {who}）")
+    print(f"数据源：{settings.DB_URL.split('@')[-1].split('?')[0]}")
     print(f"今天完成：{today_n} 节   昨天完成：{yest_n} 节")
+    if not today_n:
+        last_at = max((r.completed_at for r in done.values() if r.completed_at), default=None)
+        if last_at:
+            print(f"（该账号最近一次完成：{last_at:%Y-%m-%d %H:%M}）")
     print(f"目标：每天 {GOAL_MIN}-{GOAL_MAX} 节   →   {label}")
     print(
         f"累计进度：{completed_total} / {total_lessons} 节"

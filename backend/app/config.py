@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # ⚠️ 改错名字不会报错，只会新建一个空白账号 —— 看起来就像「进度全没了」。
     AUTO_LOGIN_USERNAME: str = "如梦令"
 
+    # 每日学习结算（lesson_daily_check.py）按**学号**认人。
+    # 登录已经改成学号，username 列的旧名（如梦令）只是历史残留，不能当身份用。
+    AUTO_LOGIN_STUDENT_ID: str = "20230614224"
+
     # AI（留空 = 离线演示模式）
     AI_BASE_URL: str = ""
     AI_API_KEY: str = ""
