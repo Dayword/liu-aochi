@@ -18,9 +18,11 @@ from ..learn_video import load_videos
 from ..models import LearnProgress, User, now
 from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        LearnPointBrief, LearnPointDetail, LearnQuizItem,
-                       LearnQuizResult, LearnQuizSubmitIn)
+                       LearnQuizResult, LearnQuizSubmitIn,
+                       MindMapBranch, MindMapItem, MindMapSubject)
 from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
+from ..seed.learn_mindmap import MINDMAPS
 from ..seed.learn_sketch import sketch_of
 from ..services import growth, sql_runner
 from ..services.code_runner import run_python
@@ -323,6 +325,49 @@ def points(db: Session = Depends(get_db), user: User = Depends(get_current_user)
                             summary=p["summary"], stage=p.get("stage", ""),
                             subject=p["subject"], runner=_runner(p), status=st)
             for p, st in _statuses(db, user)]
+
+
+@router.get("/mindmaps", response_model=list[MindMapSubject])
+def mindmaps(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """12 棵面试知识树一次全返回。
+
+    数据量很小（357 个知识点，序列化后约 60KB），比「切一次科目请求一次」
+    少 12 次往返；前端在科目间切换时也不用等。
+
+    带上每门课的解锁状态：图上点一个 locked 的考点，Learn 页会退回第一课，
+    学生看到的是「点了 A 却打开 B」。前端据此拦住并提示先学前面的。
+    """
+    st = {p["code"]: s for p, s in _statuses(db, user)}
+    out: list[MindMapSubject] = []
+    for subject in SUBJECTS:
+        tree = MINDMAPS.get(subject) or {}
+        branches: list[MindMapBranch] = []
+        covered: set[str] = set()
+        node_total = hot_total = 0
+        for br in tree.get("branches") or []:
+            items: list[MindMapItem] = []
+            for it in br.get("items") or []:
+                code = it.get("code")
+                p = BY_CODE.get(code) if code else None
+                # code 写错就摘掉「可点」而不是整棵树报错 —— 图上少一个入口，
+                # 总比让学生看到 500 更合适。
+                if code and not p:
+                    code = None
+                if p:
+                    covered.add(code)
+                items.append(MindMapItem(name=it["name"], code=code,
+                                         hot=it.get("hot", 2),
+                                         lesson_title=p["title"] if p else "",
+                                         status=st.get(code, "locked")))
+            node_total += len(items)
+            hot_total += sum(1 for x in items if x.hot == 3)
+            branches.append(MindMapBranch(name=br["name"], items=items))
+        out.append(MindMapSubject(subject=subject, intro=tree.get("intro", ""),
+                                  branches=branches,
+                                  lesson_total=len(BY_SUBJECT[subject]),
+                                  lesson_covered=len(covered),
+                                  node_total=node_total, hot_total=hot_total))
+    return out
 
 
 @router.get("/points/{code}", response_model=LearnPointDetail)

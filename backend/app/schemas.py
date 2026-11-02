@@ -355,6 +355,35 @@ class LessonSketch(BaseModel):
     edges: list[SketchEdge]
 
 
+class MindMapItem(BaseModel):
+    """一个面试知识点。code 为空表示「面试会问、站内还没课」。"""
+
+    name: str
+    code: Optional[str] = None
+    hot: int = 2                 # 1 纵深 / 2 常问 / 3 几乎必问
+    lesson_title: str = ""       # 对应课程标题，前端悬停提示用
+    # 这门课在当前账号下的状态。locked 时点进去会被 Learn 页退回第一课，
+    # 所以前端要拦一下并提示「先学前面的」，而不是默默跳错地方。
+    status: str = "unlocked"     # locked / unlocked / completed
+
+
+class MindMapBranch(BaseModel):
+    """一个面试考察维度。"""
+
+    name: str
+    items: list[MindMapItem] = []
+
+
+class MindMapSubject(BaseModel):
+    subject: str
+    intro: str = ""              # 这科在面试里会怎么考
+    branches: list[MindMapBranch] = []
+    lesson_total: int = 0        # 本科课程总数
+    lesson_covered: int = 0      # 被这棵树引用到的课程数（覆盖率）
+    node_total: int = 0
+    hot_total: int = 0           # 必问数量
+
+
 class LearnPointDetail(LearnPointBrief):
     definition: str
     plain: str

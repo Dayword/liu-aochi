@@ -291,6 +291,32 @@ export interface CodeRunResult {
 }
 
 // ---------- 引导式学习 ----------
+/** 面试知识树的一个知识点：code 为空 = 面试会问但站内还没课 */
+export interface MindMapItem {
+  name: string
+  code?: string | null
+  hot: number
+  lesson_title: string
+  /** locked / unlocked / completed：locked 时点进去会被 Learn 页退回第一课 */
+  status: string
+}
+
+export interface MindMapBranch {
+  name: string
+  items: MindMapItem[]
+}
+
+/** /api/learn/mindmaps 的一棵树（一个科目） */
+export interface MindMapSubject {
+  subject: string
+  intro: string
+  branches: MindMapBranch[]
+  lesson_total: number
+  lesson_covered: number
+  node_total: number
+  hot_total: number
+}
+
 export interface LearnPointBrief {
   code: string
   order_no: number

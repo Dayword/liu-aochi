@@ -9,6 +9,7 @@ import Quest from './pages/Quest'
 import Game from './pages/Game'
 import Learn from './pages/Learn'
 import LearnPractice from './pages/LearnPractice'
+import MindMap from './pages/MindMap'
 import Sandbox from './pages/Sandbox'
 import Chat from './pages/Chat'
 import Interview from './pages/Interview'
@@ -55,6 +56,8 @@ function Routing() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
+          {/* 面试知识地图：每科一棵可缩放/折叠的思维导图，点考点直接进课程 */}
+          <Route path="/mindmap" element={<MindMap />} />
           {/* 动手任务页：题目 + 编辑器 + 运行判定都在这一页 */}
           <Route path="/learn/:code/practice" element={<LearnPractice />} />
           {/* 独立代码沙箱页：AI 导师里的 🧪 图标跳到这里 */}

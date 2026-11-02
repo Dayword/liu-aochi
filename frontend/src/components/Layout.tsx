@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { App, Progress } from 'antd'
 import {
+  ApartmentOutlined,
   BookOutlined,
   BugOutlined,
   CommentOutlined,
@@ -27,7 +28,7 @@ const TABS = [
   {
     to: '/learn',
     label: '引导式学习',
-    match: (p: string) => p.startsWith('/learn'),
+    match: (p: string) => p.startsWith('/learn') || p.startsWith('/mindmap'),
     icon: <BookOutlined />,
   },
   {
@@ -55,6 +56,7 @@ const NAV_GROUPS = [
     title: '学习',
     items: [
       { to: '/learn', label: '引导式学习', icon: <BookOutlined /> },
+      { to: '/mindmap', label: '知识地图', icon: <ApartmentOutlined /> },
       { to: '/levels', label: '关卡地图', icon: <EnvironmentOutlined /> },
       { to: '/leaderboard', label: '排行榜', icon: <TrophyOutlined /> },
     ],
@@ -106,6 +108,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     location.pathname.startsWith('/game') ||
     location.pathname.startsWith('/sandbox') ||
     /^\/learn\/[^/]+\/practice$/.test(location.pathname)
+
+  // 知识地图要尽量大的画布，不套 max-w-6xl（否则 12 棵树只能缩着看）
+  const wide = location.pathname.startsWith('/mindmap')
 
   return (
     <div className="min-h-screen md:flex">
@@ -199,7 +204,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className={hideChrome ? '' : 'px-3 py-3 md:p-8 max-w-6xl mx-auto'}
+          className={
+            hideChrome
+              ? ''
+              : wide
+                ? 'px-2 py-2 md:px-4 md:py-4'
+                : 'px-3 py-3 md:p-8 max-w-6xl mx-auto'
+          }
         >
           {children}
         </motion.div>
