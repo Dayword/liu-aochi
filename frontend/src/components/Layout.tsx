@@ -1,82 +1,65 @@
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { App, Progress } from 'antd'
-import {
-  ApartmentOutlined,
-  BookOutlined,
-  BugOutlined,
-  CommentOutlined,
-  CrownOutlined,
-  EnvironmentOutlined,
-  HomeOutlined,
-  LogoutOutlined,
-  TrophyOutlined,
-  UserOutlined,
-} from '@ant-design/icons'
+import { MenuOutlined } from '@ant-design/icons'
 import { motion } from 'framer-motion'
 import { useAuth } from '../store/auth'
 import IcpFooter from './IcpFooter'
+import MobileDrawer, { useEdgeSwipe } from './MobileDrawer'
+import { ALL_ENTRIES, NAV_GROUPS } from '../nav'
 
 /**
- * 底部四 Tab：手机端的主要导航。
- * 顺序固定为 首页 / 引导式学习 / AI 导师 / 我的。
+ * 底部四 Tab：手机端的高频导航。
+ * 只放最常用的四个；知识地图 / 面试闯关 / Bug 猎人 / 错题本 / 收藏
+ * 都在左侧抽屉里（点 ☰ 或从左边缘右滑唤出）。
+ *
  * 「AI 导师」这一栏把 /sandbox 也算进来，因为沙箱是从导师页跳过去的；
- * 「我的」吃掉 /leaderboard，因为排行榜是从我的页进去的。
+ * 「我的」吃掉 /leaderboard /wrong /favorites，因为这三个都从我的页进。
  */
-const TABS = [
-  { to: '/', label: '首页', match: (p: string) => p === '/', icon: <HomeOutlined /> },
-  {
-    to: '/learn',
-    label: '引导式学习',
-    match: (p: string) => p.startsWith('/learn') || p.startsWith('/mindmap'),
-    icon: <BookOutlined />,
-  },
-  {
-    to: '/chat',
-    label: 'AI导师',
-    match: (p: string) => p.startsWith('/chat') || p.startsWith('/sandbox'),
-    icon: <CommentOutlined />,
-  },
-  {
-    to: '/profile',
-    label: '我的',
-    match: (p: string) =>
-      p.startsWith('/profile') ||
-      p.startsWith('/leaderboard') ||
-      p.startsWith('/wrong') ||
-      p.startsWith('/favorites'),
-    icon: <UserOutlined />,
-  },
-]
+const TAB_LABEL: Record<string, string> = {
+  '/': '首页',
+  '/learn': '引导式学习',
+  '/chat': 'AI导师',
+  '/profile': '我的',
+}
 
-/** 桌面端左侧栏：按 学习 / 陪练 分组 */
-const NAV_GROUPS = [
-  { title: '', items: [{ to: '/', label: '首页', icon: <HomeOutlined /> }] },
-  {
-    title: '学习',
-    items: [
-      { to: '/learn', label: '引导式学习', icon: <BookOutlined /> },
-      { to: '/mindmap', label: '知识地图', icon: <ApartmentOutlined /> },
-      { to: '/levels', label: '关卡地图', icon: <EnvironmentOutlined /> },
-      { to: '/leaderboard', label: '排行榜', icon: <TrophyOutlined /> },
-    ],
-  },
-  {
-    title: '陪练',
-    items: [
-      { to: '/chat', label: 'AI 导师', icon: <CommentOutlined /> },
-      { to: '/interview', label: '面试闯关', icon: <CrownOutlined /> },
-      { to: '/bugs', label: 'Bug 猎人', icon: <BugOutlined /> },
-    ],
-  },
-  { title: '', items: [{ to: '/profile', label: '我的', icon: <UserOutlined /> }] },
-]
+const TABS = ['/', '/learn', '/chat', '/profile'].map((to) => {
+  const entry = ALL_ENTRIES.find((e) => e.to === to)!
+  return {
+    to,
+    label: TAB_LABEL[to] || entry.label,
+    icon: entry.icon,
+    match: (p: string) => {
+      if (to === '/') return p === '/'
+      if (to === '/learn') return p.startsWith('/learn')
+      if (to === '/chat') return p.startsWith('/chat') || p.startsWith('/sandbox')
+      return (
+        p.startsWith('/profile') ||
+        p.startsWith('/leaderboard') ||
+        p.startsWith('/wrong') ||
+        p.startsWith('/favorites')
+      )
+    },
+  }
+})
+
+/** 桌面端左侧栏：按 学习 / 陪练 / 我的 分组（清单见 src/nav.tsx，与手机抽屉同源） */
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { character, user, offline, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { modal } = App.useApp()
+  // 手机抽屉：☰ 打开，左边缘右滑也能打开
+  const [drawer, setDrawer] = useState(false)
+  const openDrawer = useCallback(() => setDrawer(true), [])
+  const closeDrawer = useCallback(() => setDrawer(false), [])
+  useEdgeSwipe(openDrawer)
+  // 换页面就收起抽屉（比如抽屉里点了某个入口）
+  useEffect(() => {
+    setDrawer(false)
+  }, [location.pathname])
+
   const expPct = useMemo(() => {
     if (!character) return 0
     return Math.min(100, Math.round((character.exp / character.exp_to_next) * 100))
@@ -117,7 +100,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ===== 手机：极简品牌条（导航在底部） ===== */}
       {!hideChrome && (
         <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-indigo-200">
-          <div className="flex items-center gap-2 px-3 h-11">
+          <div className="flex items-center gap-2 px-2 h-11">
+            <button
+              data-menu-btn="1"
+              onClick={openDrawer}
+              aria-label="全部功能"
+              className="w-9 h-9 -ml-0.5 shrink-0 rounded-lg text-slate-600 active:bg-slate-100 flex items-center justify-center"
+            >
+              <MenuOutlined className="text-[17px]" />
+            </button>
             <span className="text-lg leading-none">🌌</span>
             <span className="font-bold text-[15px] text-indigo-700 truncate">码境 CodeRealm</span>
             {character && (
@@ -241,6 +232,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="h-[env(safe-area-inset-bottom)]" />
         </nav>
+      )}
+
+      {/* ===== 手机：左侧抽屉（全站入口都在这） ===== */}
+      {!hideChrome && (
+        <MobileDrawer open={drawer} onClose={closeDrawer} onLogout={askLogout} />
       )}
 
       {offline && (

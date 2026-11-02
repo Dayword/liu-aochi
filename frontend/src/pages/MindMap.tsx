@@ -69,6 +69,8 @@ interface MNode {
   hot: number
   lesson: string
   status: string
+  /** lesson = 知识点，action = 行动项（只有路径图有） */
+  kind: 'branch' | 'lesson' | 'action'
   color: number
   /** 1 = 挂在根的右侧，-1 = 左侧。单列时全是 1。 */
   side: 1 | -1
@@ -82,14 +84,16 @@ interface MNode {
 
 function buildTree(subject: MindMapSubject, collapsed: Set<string>): MNode {
   const root: MNode = {
-    id: 'root', label: subject.subject, depth: 0, hot: 3, lesson: '', status: 'unlocked', color: 0, side: 1,
+    id: 'root', label: subject.subject, depth: 0, hot: 3, lesson: '', status: 'unlocked',
+    kind: 'branch', color: 0, side: 1,
     children: [], collapsed: collapsed.has('root'),
     w: ROOT_W, h: ROOT_H, x: 0, y: 0,
   }
   subject.branches.forEach((b, bi) => {
     const bid = `b${bi}`
     const branch: MNode = {
-      id: bid, label: b.name, depth: 1, hot: 3, lesson: '', status: 'unlocked', color: bi % PALETTE.length, side: 1,
+      id: bid, label: b.name, depth: 1, hot: 3, lesson: '', status: 'unlocked',
+      kind: 'branch', color: bi % PALETTE.length, side: 1,
       children: [], collapsed: collapsed.has(bid),
       w: BRANCH_W, h: BRANCH_H, x: 0, y: 0,
     }
@@ -98,6 +102,7 @@ function buildTree(subject: MindMapSubject, collapsed: Set<string>): MNode {
         id: `${bid}-${ii}`, label: it.name, depth: 2, hot: it.hot,
         code: it.code ?? null, lesson: it.lesson_title || '',
         status: it.status || 'unlocked',
+        kind: it.kind === 'action' ? 'action' : 'lesson',
         color: bi % PALETTE.length, side: 1,
         children: [], collapsed: false,
         w: LEAF_W, h: leafH(it.name), x: 0, y: 0,
@@ -413,7 +418,9 @@ function GraphCanvas({
             const isRoot = n.depth === 0
             const isBranch = n.depth === 1
             const isLeaf = n.depth === 2
-            const noCourse = isLeaf && !n.code
+            const isAction = n.kind === 'action'
+            // 行动项本来就没有对应课程，不能标成「待补」——那是知识点缺课的标记
+            const noCourse = isLeaf && !n.code && !isAction
             const hit = matches.has(n.id)
             const clickable = isBranch || (isLeaf && !!n.code)
             return (
@@ -430,9 +437,18 @@ function GraphCanvas({
                   data-mnode={n.id}
                   data-depth={n.depth}
                   data-code={n.code || undefined}
+                  data-action={n.kind === 'action' ? '1' : undefined}
                   data-hit={hit ? '1' : undefined}
                   onPointerDown={() => { pending.current = n }}
-                  title={isLeaf ? (n.lesson ? `对应课程：${n.lesson}` : '面试会问，站内暂无对应课程') : ''}
+                  title={
+                    isLeaf
+                      ? isAction
+                        ? '行动项：这学期该动手做的事'
+                        : n.lesson
+                          ? `对应课程：${n.lesson}`
+                          : '会考，但站内暂无对应课程'
+                      : ''
+                  }
                   style={{
                     width: n.w,
                     height: n.h,
@@ -448,6 +464,7 @@ function GraphCanvas({
                         ? 'rounded-xl border-2 font-semibold shadow-sm justify-between'
                         : 'rounded-lg border leading-[19px] text-slate-700 bg-white',
                     isLeaf && noCourse ? 'border-dashed bg-slate-50 !text-slate-500' : '',
+                    isAction ? '!border-amber-300 !bg-amber-50' : '',
                     hit ? 'ring-2 ring-amber-400 ring-offset-1' : '',
                     isLeaf && n.code ? 'hover:shadow-md hover:border-indigo-300' : '',
                   ].join(' ')}
@@ -458,7 +475,7 @@ function GraphCanvas({
                       style={{ background: col.line, opacity: 0.85 }}
                     />
                   )}
-                  {isLeaf && (
+                  {isLeaf && !isAction && (
                     <span
                       className="shrink-0 rounded-full"
                       style={{
@@ -469,12 +486,23 @@ function GraphCanvas({
                       }}
                     />
                   )}
+                  {isAction && (
+                    <span
+                      className="shrink-0 rounded-[2px]"
+                      style={{
+                        width: 6,
+                        height: 6,
+                        background: '#f59e0b',
+                        boxShadow: n.hot === 3 ? '0 0 0 3px rgba(245,158,11,.16)' : undefined,
+                      }}
+                    />
+                  )}
                   <span
                     className="min-w-0"
                     style={{
                       fontSize: isRoot ? ROOT_FS : isBranch ? BRANCH_FS : LEAF_FS,
                       wordBreak: 'break-word',
-                      color: isRoot ? '#fff' : isBranch ? col.fg : undefined,
+                      color: isRoot ? '#fff' : isBranch ? col.fg : isAction ? '#92400e' : undefined,
                     }}
                   >
                     {n.label}
@@ -525,16 +553,32 @@ function GraphCanvas({
 
       {/* 图例 */}
       <div className="absolute left-2.5 bottom-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-slate-500 bg-white/85 backdrop-blur rounded-lg px-2 py-1 border border-slate-200 max-w-[70%]">
-        {[
-          { c: HOT_COLOR[3], t: '必问' },
-          { c: HOT_COLOR[2], t: '常问' },
-          { c: HOT_COLOR[1], t: '纵深' },
-        ].map((l) => (
+        {(subject.kind === 'roadmap'
+          ? [
+              { c: HOT_COLOR[3], t: '硬地基' },
+              { c: HOT_COLOR[2], t: '重要' },
+              { c: HOT_COLOR[1], t: '了解' },
+            ]
+          : [
+              { c: HOT_COLOR[3], t: '必问' },
+              { c: HOT_COLOR[2], t: '常问' },
+              { c: HOT_COLOR[1], t: '纵深' },
+            ]
+        ).map((l) => (
           <span key={l.t} className="inline-flex items-center gap-1">
             <i className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: l.c }} />
             {l.t}
           </span>
         ))}
+        {subject.kind === 'roadmap' && (
+          <span className="inline-flex items-center gap-1">
+            <i
+              className="inline-block w-1.5 h-1.5 rounded-[1px]"
+              style={{ background: '#f59e0b' }}
+            />
+            动手做
+          </span>
+        )}
         {!compact && (
           <>
             <span className="text-slate-300">|</span>
@@ -571,11 +615,26 @@ export default function MindMap() {
   }, [])
 
   const subject = data[active]
+  const isRoad = subject?.kind === 'roadmap'
+  const actionTotal = useMemo(
+    () =>
+      subject?.branches.reduce(
+        (n, b) => n + b.items.filter((i) => i.kind === 'action').length,
+        0,
+      ) ?? 0,
+    [subject],
+  )
 
-  // 默认全部展开：进来先看全貌，要读细节再双指/滚轮放大
+  // 12 棵面试树默认全展开：进来先看全貌，要读细节再双指/滚轮放大。
+  // 三年路径图反过来——85 个条目在一屏里读不了，而它的价值恰恰是
+  // 「一屏看到自己在第几学期」，所以默认折叠成 7 个学期，点开哪个看哪个。
   useEffect(() => {
     if (!subject) return
-    setCollapsed(new Set())
+    setCollapsed(
+      subject.kind === 'roadmap'
+        ? new Set(subject.branches.map((_, i) => `b${i}`))
+        : new Set(),
+    )
     setQ('')
   }, [subject])
 
@@ -602,6 +661,13 @@ export default function MindMap() {
     if (!t || !subject) return new Set<string>()
     const set = new Set<string>()
     subject.branches.forEach((b, bi) => {
+      // 分支名（学期 / 考察维度）命中时，把它下面所有条目一起点亮：
+      // 搜「大二」要能把整个大二上、大二下的块都标出来，而不是 0 命中。
+      if (b.name.toLowerCase().includes(t)) {
+        set.add(`b${bi}`)
+        b.items.forEach((_, ii) => set.add(`b${bi}-${ii}`))
+        return
+      }
       b.items.forEach((it, ii) => {
         if (it.name.toLowerCase().includes(t)) set.add(`b${bi}-${ii}`)
       })
@@ -690,8 +756,11 @@ export default function MindMap() {
         <p className="flex-1 min-w-0 text-[12px] leading-relaxed text-slate-500 bg-white/70 border border-slate-200 rounded-lg px-3 py-2">
           {subject.intro}
           <span className="ml-1 text-slate-400">
-            （{subject.node_total} 个考点，必问 {subject.hot_total}；覆盖 {subject.lesson_covered}/
-            {subject.lesson_total} 课）
+            {isRoad
+              ? `（${subject.node_total - actionTotal} 个知识点 + ${actionTotal} 个行动项；` +
+                `${subject.lesson_covered} 个能点进站内课程）`
+              : `（${subject.node_total} 个考点，必问 ${subject.hot_total}；覆盖 ` +
+                `${subject.lesson_covered}/${subject.lesson_total} 课）`}
           </span>
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -700,7 +769,7 @@ export default function MindMap() {
             size="small"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="搜考点，如 索引"
+            placeholder={isRoad ? '搜学期或知识点' : '搜考点，如 索引'}
             style={{ width: 148 }}
           />
           <button

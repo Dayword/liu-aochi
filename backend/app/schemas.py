@@ -356,7 +356,7 @@ class LessonSketch(BaseModel):
 
 
 class MindMapItem(BaseModel):
-    """一个面试知识点。code 为空表示「面试会问、站内还没课」。"""
+    """一个考点。code 为空表示「会考、但站内还没对应课程」。"""
 
     name: str
     code: Optional[str] = None
@@ -365,10 +365,13 @@ class MindMapItem(BaseModel):
     # 这门课在当前账号下的状态。locked 时点进去会被 Learn 页退回第一课，
     # 所以前端要拦一下并提示「先学前面的」，而不是默默跳错地方。
     status: str = "unlocked"     # locked / unlocked / completed
+    # lesson = 知识点（面试树 / 路径图的「学什么」）
+    # action = 行动项（路径图的「这学期动手做什么」），前端单独配色，且不显示「待补」
+    kind: str = "lesson"
 
 
 class MindMapBranch(BaseModel):
-    """一个面试考察维度。"""
+    """一棵树的一级分支：面试树是考察维度，路径图是学期。"""
 
     name: str
     items: list[MindMapItem] = []
@@ -381,7 +384,9 @@ class MindMapSubject(BaseModel):
     lesson_total: int = 0        # 本科课程总数
     lesson_covered: int = 0      # 被这棵树引用到的课程数（覆盖率）
     node_total: int = 0
-    hot_total: int = 0           # 必问数量
+    hot_total: int = 0           # 必问数量（路径图里是「硬地基」数量）
+    # subject = 单科面试树 / roadmap = 大学三年路径（前端据此换文案）
+    kind: str = "subject"
 
 
 class LearnPointDetail(LearnPointBrief):

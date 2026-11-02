@@ -1,85 +1,39 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  BugOutlined,
-  CommentOutlined,
-  CrownOutlined,
-  EnvironmentOutlined,
-  BookOutlined,
-  RightOutlined,
-  TrophyOutlined,
-} from '@ant-design/icons'
 import { Progress } from 'antd'
 import { motion } from 'framer-motion'
 import { api } from '../api/client'
 import { useAuth } from '../store/auth'
 import type { Profile } from '../types'
 import HomePoster from '../components/HomePoster'
+import { ALL_ENTRIES } from '../nav'
 
 /**
  * 首页 = 入口大厅。
  *
  * 顶部是一张纯 SVG 绘制的海报（见 components/HomePoster.tsx）。
- * 海报下面是**两个大卡片**（引导式学习 / AI 导师）——这两个是日常用得最多的入口，
- * 所以高度做得比下面四个小按钮明显大一截；再下面是四个快捷入口。
+ * 海报下面分两层：
+ *   1. 两张**大卡**（引导式学习 / AI 导师）——日常用得最多，所以高度明显大一截
+ *   2. 「全部功能」宫格——把剩下的入口一次铺出来
  *
- * 学习进度、排名、成就、错题都在「我的」页；主导航是底部四 Tab。
+ * 入口数据全部来自 src/nav.tsx，不再在这里硬编码。
+ * 之前这里是写死的 6 个入口，加了知识地图之后首页和底栏都没有它，
+ * 手机上根本找不到——现在加页面只改 nav.tsx，首页自动跟上。
  */
-const BIG_ENTRIES = [
-  {
-    to: '/learn',
-    icon: <BookOutlined />,
-    emoji: '📚',
-    title: '引导式学习',
-    desc: '12 科目 · 135 课时',
-    tone: 'from-indigo-500 to-violet-500',
-    glow: 'from-indigo-300 to-violet-300',
-  },
-  {
-    to: '/chat',
-    icon: <CommentOutlined />,
-    emoji: '💬',
-    title: 'AI 导师',
-    desc: '随时提问 · 流式回答',
-    tone: 'from-fuchsia-500 to-rose-500',
-    glow: 'from-fuchsia-300 to-rose-300',
-  },
-]
+const BIG_PATHS = ['/learn', '/chat']
 
-const SMALL_ENTRIES = [
-  {
-    to: '/levels',
-    icon: <EnvironmentOutlined />,
-    emoji: '🗺️',
-    title: '关卡地图',
-    desc: '4 种知识小游戏',
-    tone: 'from-emerald-500 to-teal-500',
-  },
-  {
-    to: '/interview',
-    icon: <CrownOutlined />,
-    emoji: '🎤',
-    title: '面试闯关',
-    desc: '9 分类 × 8 题',
-    tone: 'from-amber-500 to-orange-500',
-  },
-  {
-    to: '/bugs',
-    icon: <BugOutlined />,
-    emoji: '🐛',
-    title: 'Bug 猎人',
-    desc: '限时读码找 Bug',
-    tone: 'from-rose-500 to-pink-500',
-  },
-  {
-    to: '/leaderboard',
-    icon: <TrophyOutlined />,
-    emoji: '🏆',
-    title: '排行榜',
-    desc: '年级班级榜',
-    tone: 'from-sky-500 to-blue-500',
-  },
-]
+/** 大卡右上角的光斑色，比小图标更明显，用来强化主入口层级 */
+const GLOW: Record<string, string> = {
+  '/learn': 'from-indigo-300 to-violet-300',
+  '/chat': 'from-fuchsia-300 to-rose-300',
+}
+
+const BIG_ENTRIES = BIG_PATHS.map((p) => ({
+  ...ALL_ENTRIES.find((e) => e.to === p)!,
+  glow: GLOW[p],
+}))
+
+const MORE_ENTRIES = ALL_ENTRIES.filter((e) => e.to !== '/' && !BIG_PATHS.includes(e.to))
 
 export default function Home() {
   const { character, user } = useAuth()
@@ -137,7 +91,7 @@ export default function Home() {
             <div className="relative mt-2 md:mt-0 min-w-0 md:flex-1">
               <div className="font-bold text-[15px] leading-tight flex items-center gap-1">
                 <span>{e.emoji}</span>
-                <span className="truncate">{e.title}</span>
+                <span className="truncate">{e.label}</span>
               </div>
               <div className="text-[11px] text-slate-500 leading-snug mt-0.5">{e.desc}</div>
             </div>
@@ -178,35 +132,33 @@ export default function Home() {
         ))}
       </div>
 
-      {/* ===== 四个快捷入口（2×2） ===== */}
-      <div className="grid grid-cols-2 gap-2">
-        {SMALL_ENTRIES.map((e) => (
-          <motion.button
-            key={e.to}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate(e.to)}
-            className="game-panel relative overflow-hidden text-left p-3 active:bg-slate-50"
-          >
-            <div
-              className={`pointer-events-none absolute -right-6 -top-6 w-16 h-16 rounded-full bg-gradient-to-br ${e.tone} opacity-[0.10]`}
-            />
-            <div className="relative flex items-start gap-2">
-              <div
-                className={`w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br ${e.tone} text-white flex items-center justify-center text-base shadow-sm`}
+      {/* ===== 全部功能宫格：其余入口一个不落 ===== */}
+      <div className="game-panel p-3">
+        <div className="flex items-baseline justify-between">
+          <div className="text-[13px] font-semibold text-slate-700">🧭 全部功能</div>
+          <div className="text-[10px] text-slate-400">{MORE_ENTRIES.length} 个入口都在这</div>
+        </div>
+        {/* 3 列会空出一格（8 个入口排 3+3+2），4 列正好两行排满 */}
+        <div className="mt-2.5 grid grid-cols-4 gap-1.5">
+          {MORE_ENTRIES.map((e) => (
+            <motion.button
+              key={e.to}
+              data-entry={e.to}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate(e.to)}
+              className="flex flex-col items-center gap-1 py-2 rounded-xl border border-slate-200/90 bg-white active:bg-slate-50 transition-colors"
+            >
+              <span
+                className={`w-8 h-8 rounded-lg bg-gradient-to-br ${e.tone} text-white flex items-center justify-center text-[14px] shadow-sm`}
               >
                 {e.icon}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-[14px] flex items-center gap-1">
-                  <span>{e.emoji}</span>
-                  <span className="truncate">{e.title}</span>
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{e.desc}</div>
-              </div>
-              <RightOutlined className="text-[10px] text-slate-300 mt-1 shrink-0" />
-            </div>
-          </motion.button>
-        ))}
+              </span>
+              <span className="text-[11px] font-medium text-slate-600 leading-none whitespace-nowrap">
+                {e.label}
+              </span>
+            </motion.button>
+          ))}
+        </div>
       </div>
 
       {/* ===== 小装饰：冒险路线（虚线路径 + 四个里程碑） ===== */}

@@ -299,6 +299,8 @@ export interface MindMapItem {
   lesson_title: string
   /** locked / unlocked / completed：locked 时点进去会被 Learn 页退回第一课 */
   status: string
+  /** lesson = 知识点；action = 行动项（路径图专用，另行配色、不显示「待补」） */
+  kind?: 'lesson' | 'action'
 }
 
 export interface MindMapBranch {
@@ -306,7 +308,7 @@ export interface MindMapBranch {
   items: MindMapItem[]
 }
 
-/** /api/learn/mindmaps 的一棵树（一个科目） */
+/** /api/learn/mindmaps 的一棵树（一个科目，或那张三年路径图） */
 export interface MindMapSubject {
   subject: string
   intro: string
@@ -315,6 +317,8 @@ export interface MindMapSubject {
   lesson_covered: number
   node_total: number
   hot_total: number
+  /** subject = 单科面试树；roadmap = 大学三年路径（文案与默认展开行为不同） */
+  kind?: 'subject' | 'roadmap'
 }
 
 export interface LearnPointBrief {
