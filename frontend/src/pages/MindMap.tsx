@@ -68,6 +68,10 @@ interface MNode {
   code?: string | null
   hot: number
   lesson: string
+  /** 面试题题干（点开弹层里显示「面试怎么问」） */
+  q: string
+  /** 标准答案 */
+  answer: string
   status: string
   /** lesson = 知识点，action = 行动项（只有路径图有） */
   kind: 'branch' | 'lesson' | 'action'
@@ -85,7 +89,7 @@ interface MNode {
 function buildTree(subject: MindMapSubject, collapsed: Set<string>): MNode {
   const root: MNode = {
     id: 'root', label: subject.subject, depth: 0, hot: 3, lesson: '', status: 'unlocked',
-    kind: 'branch', color: 0, side: 1,
+    kind: 'branch', color: 0, side: 1, q: '', answer: '', 
     children: [], collapsed: collapsed.has('root'),
     w: ROOT_W, h: ROOT_H, x: 0, y: 0,
   }
@@ -93,19 +97,23 @@ function buildTree(subject: MindMapSubject, collapsed: Set<string>): MNode {
     const bid = `b${bi}`
     const branch: MNode = {
       id: bid, label: b.name, depth: 1, hot: 3, lesson: '', status: 'unlocked',
-      kind: 'branch', color: bi % PALETTE.length, side: 1,
+      kind: 'branch', color: bi % PALETTE.length, side: 1, q: '', answer: '', 
       children: [], collapsed: collapsed.has(bid),
       w: BRANCH_W, h: BRANCH_H, x: 0, y: 0,
     }
     b.items.forEach((it, ii) => {
+      // 节点文字优先用 kp（知识点名词，如「装饰器」「最左前缀」）：
+      // 图上要的是概念，不是一整句考官的问法，问法放在点开的弹层里。
+      const label = it.kp || it.name
       branch.children.push({
-        id: `${bid}-${ii}`, label: it.name, depth: 2, hot: it.hot,
+        id: `${bid}-${ii}`, label, depth: 2, hot: it.hot,
         code: it.code ?? null, lesson: it.lesson_title || '',
+        q: it.name, answer: it.answer || '',
         status: it.status || 'unlocked',
         kind: it.kind === 'action' ? 'action' : 'lesson',
         color: bi % PALETTE.length, side: 1,
         children: [], collapsed: false,
-        w: LEAF_W, h: leafH(it.name), x: 0, y: 0,
+        w: LEAF_W, h: leafH(label), x: 0, y: 0,
       })
     })
     root.children.push(branch)
@@ -582,7 +590,7 @@ function GraphCanvas({
         {!compact && (
           <>
             <span className="text-slate-300">|</span>
-            <span className="hidden sm:inline">点分支展开 · 点考点进入课程 · 滚轮缩放 · 拖拽平移</span>
+            <span className="hidden sm:inline">点分支展开 · 点知识点看答案 · 滚轮缩放 · 拖拽平移</span>
             <span className="sm:hidden">点分支展开</span>
           </>
         )}
@@ -599,6 +607,8 @@ export default function MindMap() {
   const [err, setErr] = useState('')
   const [active, setActive] = useState(0)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  // 点开的知识点：小弹层里放「面试怎么问 + 标准答案 + 去学这一课」
+  const [sel, setSel] = useState<MNode | null>(null)
   const [q, setQ] = useState('')
 
   // 手机横屏：进全屏层，让出导航和工具栏。真横过来后画布自动切左右双翼布局
@@ -691,18 +701,30 @@ export default function MindMap() {
     })
   }, [q, subject])
 
+  /** 点「去学这一课」：锁着的课会被 Learn 退回第一课，所以这里先拦一下 */
+  const goLesson = (n: MNode) => {
+    if (!n.code) return
+    if (n.status === 'locked') {
+      message.warning(`《${n.lesson}》还没解锁，先按顺序把前面的课学完`)
+      return
+    }
+    // 项目里没有 /learn/:code 这条路由（只有 /learn 和 /learn/:code/practice），
+    // 所以走「记住选中的课 + 回列表」：Learn 页会读这个 key 直接打开对应知识点。
+    sessionStorage.setItem('ca_learn_code', n.code)
+    setLandscape(false)
+    setSel(null)
+    navigate('/learn')
+  }
+
   const onNode = (n: MNode) => {
-    if (n.depth === 2 && n.code) {
-      // 锁着的课点进去，Learn 页会把选择退回第一课，学生看到「点了 A 打开 B」
-      if (n.status === 'locked') {
-        message.warning(`《${n.lesson}》还没解锁，先按顺序把前面的课学完`)
+    if (n.depth === 2) {
+      // 面试树：先看这个知识点是什么（弹层里有答案和对应课程），再决定要不要进课。
+      // 路径图没有答案可看，沿用「点了直接进课」。
+      if (isRoad) {
+        if (n.code) goLesson(n)
         return
       }
-      // 项目里没有 /learn/:code 这条路由（只有 /learn 和 /learn/:code/practice），
-      // 所以走「记住选中的课 + 回列表」：Learn 页会读这个 key 直接打开对应知识点。
-      sessionStorage.setItem('ca_learn_code', n.code)
-      setLandscape(false)
-      navigate('/learn')
+      setSel(n)
       return
     }
     if (!n.children.length) return
@@ -759,7 +781,7 @@ export default function MindMap() {
             {isRoad
               ? `（${subject.node_total - actionTotal} 个知识点 + ${actionTotal} 个行动项；` +
                 `${subject.lesson_covered} 个能点进站内课程）`
-              : `（${subject.node_total} 个考点，必问 ${subject.hot_total}；覆盖 ` +
+              : `（${subject.node_total} 个知识点，必问 ${subject.hot_total}；覆盖 ` +
                 `${subject.lesson_covered}/${subject.lesson_total} 课）`}
           </span>
         </p>
@@ -769,7 +791,7 @@ export default function MindMap() {
             size="small"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isRoad ? '搜学期或知识点' : '搜考点，如 索引'}
+            placeholder={isRoad ? '搜学期或知识点' : '搜知识点，如 索引'}
             style={{ width: 148 }}
           />
           <button
@@ -809,7 +831,7 @@ export default function MindMap() {
         <div className="fixed inset-0 z-[70] bg-white flex flex-col">
           <div className="flex items-center gap-2 px-3 h-10 border-b border-slate-200 shrink-0">
             <span className="text-[13px] font-semibold text-indigo-700">{subject.subject}</span>
-            <span className="text-[11px] text-slate-400">{subject.node_total} 个考点</span>
+            <span className="text-[11px] text-slate-400">{subject.node_total} 个知识点</span>
             {portrait && (
               <span className="text-[11px] text-amber-600">把手机横过来，分支会分成左右两翼</span>
             )}
@@ -829,6 +851,81 @@ export default function MindMap() {
               onNode={onNode}
               compact
             />
+          </div>
+        </div>
+      )}
+
+      {/* 知识点弹层：点图上的叶子先看「这是什么」，再决定要不要进课 */}
+      {sel && (
+        <div
+          className="fixed inset-0 z-[85] bg-slate-900/45 flex items-end md:items-center md:justify-center"
+          onClick={() => setSel(null)}
+        >
+          <div
+            data-sheet="1"
+            className="w-full md:max-w-md bg-white rounded-t-2xl md:rounded-2xl p-4 pb-5 max-h-[72vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-2">
+              <span
+                className="mt-[6px] w-1.5 h-1.5 rounded-full shrink-0"
+                style={{ background: HOT_COLOR[sel.hot] || HOT_COLOR[2] }}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-semibold text-slate-800 leading-snug">
+                  {sel.label}
+                </div>
+                <div className="mt-0.5 text-[10.5px] text-slate-400">
+                  {sel.hot === 3 ? '面试必问' : sel.hot === 2 ? '面试常问' : '纵深问题'}
+                  {sel.code ? ` · 对应课程《${sel.lesson}》` : ' · 站内还没有对应的课'}
+                </div>
+              </div>
+              <button
+                onClick={() => setSel(null)}
+                className="shrink-0 w-6 h-6 rounded-full text-slate-400 hover:bg-slate-100 leading-none"
+                aria-label="关闭"
+              >
+                ✕
+              </button>
+            </div>
+
+            {sel.q && (
+              <div className="mt-3">
+                <div className="text-[10px] text-slate-400 mb-1">面试怎么问</div>
+                <p className="text-[12.5px] leading-relaxed text-slate-600">{sel.q}</p>
+              </div>
+            )}
+
+            {sel.answer && (
+              <div className="mt-2.5 rounded-lg bg-indigo-50/70 border border-indigo-100 px-3 py-2.5">
+                <div className="text-[10px] text-indigo-500 mb-1">标准答案</div>
+                <p className="text-[12.5px] leading-relaxed text-slate-600">{sel.answer}</p>
+              </div>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <button
+                data-go-lesson="1"
+                onClick={() => goLesson(sel)}
+                disabled={!sel.code}
+                className={`flex-1 py-2 rounded-lg text-[13px] font-medium ${
+                  sel.code
+                    ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                {sel.code ? '去学这一课' : '暂无对应课程'}
+              </button>
+              <button
+                onClick={() => {
+                  setSel(null)
+                  navigate('/questions')
+                }}
+                className="px-3 py-2 rounded-lg text-[13px] text-slate-600 border border-slate-200 hover:border-indigo-300"
+              >
+                看面试考题
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -274,14 +274,19 @@ export default function Learn() {
   )
 
   useEffect(() => {
-    api
-      .get<LearnPointBrief[]>('/api/learn/points')
-      .then((list) => {
+    Promise.all([
+      api.get<LearnPointBrief[]>('/api/learn/points'),
+      // 上次停在哪一课，存在服务端（跨设备记住）；接口失败就当没有记录
+      api.get<{ code: string }>('/api/learn/resume').catch(() => ({ code: '' })),
+    ])
+      .then(([list, resumed]) => {
         if (!alive.current) return
         setPoints(list)
-        // 优先回到上次停留的那一课（从动手任务页返回时会用到）；
-        // 否则停在第一个还没掌握的（科目之间互不阻塞），全学完了停最后一课。
-        const remembered = sessionStorage.getItem(LEARN_CODE_KEY)
+        // 优先回到上次停留的那一课：
+        //   1. sessionStorage —— 同一标签页内从动手任务页返回时最快，也最准
+        //   2. 服务端 resume —— 换设备/关浏览器再进来，仍然回到那一课
+        //   3. 否则停在第一个还没掌握的（科目之间互不阻塞），全学完了停最后一课
+        const remembered = sessionStorage.getItem(LEARN_CODE_KEY) || resumed.code
         const cur =
           list.find((p) => p.code === remembered && p.status !== 'locked') ||
           list.find((p) => p.status !== 'completed') ||
@@ -443,7 +448,7 @@ export default function Learn() {
       {!loading && detail && (
         <div className="game-panel p-3 md:p-5">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <h2 className="text-base md:text-lg font-bold text-indigo-700">
+            <h2 data-lesson-title className="text-base md:text-lg font-bold text-indigo-700">
               {detail.subject} · 第 {detail.order_no} 课 · {detail.title}
             </h2>
             {detail.status === 'completed' && <span className="text-xs text-emerald-600">✓ 已掌握</span>}

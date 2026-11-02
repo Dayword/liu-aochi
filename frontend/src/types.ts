@@ -293,7 +293,12 @@ export interface CodeRunResult {
 // ---------- 引导式学习 ----------
 /** 面试知识树的一个知识点：code 为空 = 面试会问但站内还没课 */
 export interface MindMapItem {
+  /** 考官的问法（面试考题页的题干） */
   name: string
+  /** 知识点名词标签（思维导图页的节点文字） */
+  kp?: string
+  /** 标准答案，40~80 字 */
+  answer?: string
   code?: string | null
   hot: number
   lesson_title: string
@@ -574,4 +579,40 @@ export interface GuideAnswerResult {
   best_score: number
   already_passed: boolean
   next_code: string | null
+}
+
+// ---------- 面试考题 ----------
+/** 一道面试题 */
+export interface QBankItem {
+  q: string
+  kp: string
+  answer: string
+  hot: number
+}
+
+/** 一门课程下挂的题 */
+export interface QBankLesson {
+  code: string
+  title: string
+  order_no: number
+  status: string
+  items: QBankItem[]
+}
+
+/** 一个模块 = 一个课程阶段 */
+export interface QBankModule {
+  name: string
+  lessons: QBankLesson[]
+  /** 没有对应课程的题（站内还没补课） */
+  items: QBankItem[]
+}
+
+export interface QBankSubject {
+  subject: string
+  intro: string
+  modules: QBankModule[]
+  total: number
+  hot_total: number
+  lesson_covered: number
+  lesson_total: number
 }

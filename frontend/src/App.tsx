@@ -18,6 +18,7 @@ import Profile from './pages/Profile'
 import Leaderboard from './pages/Leaderboard'
 import WrongBook from './pages/WrongBook'
 import Favorites from './pages/Favorites'
+import InterviewBank from './pages/InterviewBank'
 
 function FullScreenSpin() {
   return (
@@ -56,8 +57,10 @@ function Routing() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
-          {/* 面试知识地图：每科一棵可缩放/折叠的思维导图，点考点直接进课程 */}
+          {/* 思维导图：每科一棵可缩放/折叠的知识点树，点节点看解释再进课程 */}
           <Route path="/mindmap" element={<MindMap />} />
+          {/* 面试考题：科目 → 模块 → 课程 → 题，每题带标准答案 */}
+          <Route path="/questions" element={<InterviewBank />} />
           {/* 动手任务页：题目 + 编辑器 + 运行判定都在这一页 */}
           <Route path="/learn/:code/practice" element={<LearnPractice />} />
           {/* 独立代码沙箱页：AI 导师里的 🧪 图标跳到这里 */}

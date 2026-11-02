@@ -70,6 +70,9 @@ class Character(Base):
     streak_days: Mapped[int] = mapped_column(Integer, default=0)       # 连续签到
     last_sign_date: Mapped[str] = mapped_column(String(10), default="")  # yyyy-mm-dd
     onboarding_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 上次打开的那一课。下次进「引导式学习」直接回到这里，而不是退回第一门没学完的课
+    # （学生学到第 40 课，隔天进来又被扔回第 27 课，会以为进度丢了）。
+    last_point_code: Mapped[str] = mapped_column(String(40), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
     user: Mapped["User"] = relationship(back_populates="character")

@@ -16,6 +16,10 @@ _ADDED_COLUMNS = {
         ("student_id", "VARCHAR(16) NOT NULL DEFAULT ''"),
         ("real_name", "VARCHAR(32) NOT NULL DEFAULT ''"),
     ],
+    # 记住上次打开的课时（2026-11-02）
+    "characters": [
+        ("last_point_code", "VARCHAR(40) NOT NULL DEFAULT ''"),
+    ],
 }
 
 # 已下线的种子数据：签到任务、代码币/连续签到成就、旧等级成就。

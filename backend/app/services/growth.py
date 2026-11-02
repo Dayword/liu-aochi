@@ -14,9 +14,16 @@ from ..models import (Achievement, Character, DailyTask, KnowledgeEntry,
                       Level, UserAchievement, UserDailyTask, UserLevelProgress,
                       User)
 
-# 等级标题：满级 13（135 课全部学完 = 架构师）
-TITLES = [(1, "实习生"), (5, "初级工程师"), (8, "中级工程师"),
-          (11, "高级工程师"), (13, "架构师")]
+# 13 级称号，每级都不一样（「码境行者」序列：拾荒者 → 开天者）。
+# 刻意不用「初级/中级/高级工程师」那种职级叫法：学生看到自己「Lv.7 织网者」
+# 会想往上爬，看到「Lv.7 中级工程师」只会觉得土。
+MAX_LEVEL = 13
+TITLES: list[tuple[int, str]] = [
+    (1, "拾荒者"), (2, "拓荒者"), (3, "筑路者"), (4, "架桥者"),
+    (5, "点灯人"), (6, "守夜人"), (7, "织网者"), (8, "引航员"),
+    (9, "破壁人"), (10, "造境者"), (11, "掌灯使"), (12, "观星者"),
+    (13, "开天者"),
+]
 
 # 每完成一个课时获得的经验
 LESSON_EXP = 10
@@ -76,20 +83,24 @@ def title_of(level: int) -> str:
     return t
 
 
-def exp_to_next(level: int) -> int:
-    """升到下一级所需经验（当前级内）。
+# 升到下一级需要的经验，逐级递增：前 3 课就能升到 Lv.2，最后一级要 27 课。
+# 12 段合计 1350 = 135 课 × 10 点，和第 13 级（开天者）刚好对齐，
+# 所以「学完全部课程 = 满级」，不多不少。
+#
+# ⚠️ 改这里必须同步跑 `migrate_exp.py`：老用户的 level/exp 是按旧曲线攒下来的，
+#    不重算就会出现「总经验 400、等级还是 3」这种自相矛盾的数据。
+LEVEL_STEPS: tuple[int, ...] = (30, 40, 45, 55, 65, 80, 100, 120, 145, 180, 220, 270)
 
-    曲线按「135 课 × 10 点 = 1350 点刚好满级」反推：
-    Σ(50 + 10(k-1)) for k=1..12 = 1260，加上最后一级的一点点正好 13 级。
-    别随手改大 —— 改大之后没人能升到「架构师」，等级会变成一条死线。
-    """
-    return 50 + (level - 1) * 10
+
+def exp_to_next(level: int) -> int:
+    """升到下一级所需经验（当前级内）。满级后返回最后一段，只为让进度条有分母。"""
+    return LEVEL_STEPS[min(max(level, 1), MAX_LEVEL) - 1]
 
 
 def level_of_total_exp(total: int) -> tuple[int, int]:
     """把累计经验折算成 (等级, 当前级内剩余经验)。"""
     level, rest = 1, max(0, int(total))
-    while level < 99 and rest >= exp_to_next(level):
+    while level < MAX_LEVEL and rest >= exp_to_next(level):
         rest -= exp_to_next(level)
         level += 1
     return level, rest
@@ -101,10 +112,12 @@ def add_exp(db: Session, char: Character, amount: int) -> int:
     char.total_exp += max(0, int(amount))
     char.weekly_exp += max(0, int(amount))
     ups = 0
-    while char.exp >= exp_to_next(char.level):
+    while char.level < MAX_LEVEL and char.exp >= exp_to_next(char.level):
         char.exp -= exp_to_next(char.level)
         char.level += 1
         ups += 1
+    if char.level >= MAX_LEVEL:
+        char.exp = 0
     return ups
 
 
@@ -137,9 +150,9 @@ ACH_FAMILIES: list[dict] = [
     {"key": "level", "name": "等级成长", "icon": "🚀", "category": "学习",
      "metric": "level_reach", "metric_label": "当前等级",
      "tiers": [
-         ("level_5", "初级工程师", "等级达到 5 级", 5),
-         ("level_8", "中级工程师", "等级达到 8 级", 8),
-         ("level_13", "架构师", "等级达到 13 级（满级）", 13),
+         ("level_5", "点灯人", "等级达到 5 级", 5),
+         ("level_8", "引航员", "等级达到 8 级", 8),
+         ("level_13", "开天者", "等级达到 13 级（满级）", 13),
      ]},
     {"key": "chat", "name": "AI 陪练", "icon": "💬", "category": "社交",
      "metric": "total_chats", "metric_label": "对话次数",

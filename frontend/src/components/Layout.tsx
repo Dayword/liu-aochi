@@ -86,8 +86,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
    * - /sandbox            独立代码沙箱
    * - /learn/:code/practice  动手任务（题目 + 编辑器 + 结果分屏）
    */
+  // ⚠️ /quest 要按「整段」匹配：用 startsWith 会把 /questions（面试考题）一起吃掉，
+  //    表现为面试考题页没有顶栏也没有底部 Tab，看起来像页面坏了。
   const hideChrome =
-    location.pathname.startsWith('/quest') ||
+    location.pathname === '/quest' ||
+    location.pathname.startsWith('/quest/') ||
     location.pathname.startsWith('/game') ||
     location.pathname.startsWith('/sandbox') ||
     /^\/learn\/[^/]+\/practice$/.test(location.pathname)

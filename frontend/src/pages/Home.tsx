@@ -138,8 +138,8 @@ export default function Home() {
           <div className="text-[13px] font-semibold text-slate-700">🧭 全部功能</div>
           <div className="text-[10px] text-slate-400">{MORE_ENTRIES.length} 个入口都在这</div>
         </div>
-        {/* 3 列会空出一格（8 个入口排 3+3+2），4 列正好两行排满 */}
-        <div className="mt-2.5 grid grid-cols-4 gap-1.5">
+        {/* 入口数会随功能增减变：9 个时 3 列正好 3+3+3 排满，4 列会剩一个孤零零的 */}
+        <div data-entries className="mt-2.5 grid grid-cols-3 gap-1.5">
           {MORE_ENTRIES.map((e) => (
             <motion.button
               key={e.to}

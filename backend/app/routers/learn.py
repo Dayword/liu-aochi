@@ -18,8 +18,9 @@ from ..learn_video import load_videos
 from ..models import LearnProgress, User, now
 from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        LearnPointBrief, LearnPointDetail, LearnQuizItem,
-                       LearnQuizResult, LearnQuizSubmitIn,
-                       MindMapBranch, MindMapItem, MindMapSubject)
+                       LearnQuizResult, LearnQuizSubmitIn, LearnResume,
+                       MindMapBranch, MindMapItem, MindMapSubject,
+                       QBankItem, QBankLesson, QBankModule, QBankSubject)
 from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
 from ..seed.learn_mindmap import MINDMAPS
@@ -348,6 +349,7 @@ def _build_mindmap(subject: str, tree: dict, st: dict[str, str],
             if p:
                 covered.add(code)
             items.append(MindMapItem(name=it["name"], code=code,
+                                     kp=it.get("kp", ""), answer=it.get("answer", ""),
                                      hot=it.get("hot", 2),
                                      lesson_title=p["title"] if p else "",
                                      status=st.get(code, "locked"),
@@ -363,6 +365,88 @@ def _build_mindmap(subject: str, tree: dict, st: dict[str, str],
                           kind=kind)
 
 
+@router.get("/resume", response_model=LearnResume)
+def resume(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """上次停留的课时。
+
+    存在 characters.last_point_code（服务端），不是浏览器本地存储 ——
+    学生白天在机房电脑上学、晚上用手机接着看，本地存储一换设备就没了。
+    记录失效（课程下线/进度被重置后已锁）时返回空对象，前端退回「第一门没学完的」。
+    """
+    code = (user.character.last_point_code if user.character else "") or ""
+    point = BY_CODE.get(code)
+    if not point:
+        return LearnResume()
+    status = next((st for p, st in _statuses(db, user) if p["code"] == code), "locked")
+    if status == "locked":
+        return LearnResume()
+    return LearnResume(code=point["code"], title=point["title"],
+                       subject=point["subject"], stage=point.get("stage", ""))
+
+
+@router.get("/interview-bank", response_model=list[QBankSubject])
+def interview_bank(db: Session = Depends(get_db),
+                   user: User = Depends(get_current_user)):
+    """面试考题：按「科目 → 模块（课程阶段）→ 课程 → 题目」组织，和引导式学习同一套结构。
+
+    题目来自 seed/learn_mindmap.py 的考点树：那里的一条考点就等于一道面试题，
+    自带标准答案和它对应的课程 code。这里只做重新归组 ——
+    按课程阶段分模块、按课程聚合，学生看完题能顺手点进那门课补。
+
+    `code` 为 None 的考点（会考但站内还没课）收进「课程未覆盖」模块，不丢。
+    """
+    st = {p["code"]: s for p, s in _statuses(db, user)}
+    out: list[QBankSubject] = []
+    for subject in SUBJECTS:
+        tree = MINDMAPS.get(subject) or {}
+        lessons: dict[str, QBankLesson] = {}
+        loose: list[QBankItem] = []
+        for br in tree.get("branches") or []:
+            for it in br.get("items") or []:
+                item = QBankItem(q=it["name"], kp=it.get("kp", ""),
+                                 answer=it.get("answer", ""), hot=it.get("hot", 2))
+                code = it.get("code")
+                if code and code in BY_CODE:
+                    les = lessons.get(code)
+                    if les is None:
+                        p = BY_CODE[code]
+                        les = QBankLesson(code=code, title=p["title"],
+                                          order_no=p["order_no"],
+                                          status=st.get(code, "locked"))
+                        lessons[code] = les
+                    les.items.append(item)
+                else:
+                    loose.append(item)
+
+        # 模块 = 课程阶段。跨科目引用的课（数据结构里引了 RAG 的向量库课）
+        # 按它自己所属科目的顺序排，靠 subject 序号 + 科目内序号保证稳定。
+        ordered = sorted(lessons.values(),
+                         key=lambda x: (SUBJECTS.index(BY_CODE[x.code]["subject"]),
+                                        x.order_no))
+        modules: list[QBankModule] = []
+        index: dict[str, QBankModule] = {}
+        for les in ordered:
+            stage = BY_CODE[les.code].get("stage") or "其他"
+            mod = index.get(stage)
+            if mod is None:
+                mod = QBankModule(name=stage)
+                index[stage] = mod
+                modules.append(mod)
+            mod.lessons.append(les)
+        if loose:
+            modules.append(QBankModule(name="课程未覆盖", items=loose))
+
+        total = sum(len(l.items) for m in modules for l in m.lessons) + \
+            sum(len(m.items) for m in modules)
+        hot_total = sum(1 for m in modules for l in m.lessons for x in l.items if x.hot == 3) + \
+            sum(1 for m in modules for x in m.items if x.hot == 3)
+        out.append(QBankSubject(subject=subject, intro=tree.get("intro", ""),
+                                modules=modules, total=total, hot_total=hot_total,
+                                lesson_covered=len(lessons),
+                                lesson_total=len(BY_SUBJECT[subject])))
+    return out
+
+
 @router.get("/mindmaps", response_model=list[MindMapSubject])
 def mindmaps(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """12 棵面试知识树 + 1 张大学三年路径图，一次全返回。
@@ -373,14 +457,16 @@ def mindmaps(db: Session = Depends(get_db), user: User = Depends(get_current_use
     带上每门课的解锁状态：图上点一个 locked 的考点，Learn 页会退回第一课，
     学生看到的是「点了 A 却打开 B」。前端据此拦住并提示先学前面的。
 
-    路径图放列表第一个：它的定位是「总览」，学生进来先看到自己在第几学期，
-    再决定要不要钻到某一科里去。
+    12 棵科目树排在前面：这个页面的主线是「某一科的知识点长什么样」，
+    进来默认停在 Python，而不是先看到学期路径图。
+    路径图放最后 —— 它是另一条线（什么时候学什么），需要时再切过去。
     """
     st = {p["code"]: s for p, s in _statuses(db, user)}
-    out: list[MindMapSubject] = [_build_mindmap("大学三年路径", ROADMAP, st, kind="roadmap")]
+    out: list[MindMapSubject] = []
     for subject in SUBJECTS:
         out.append(_build_mindmap(subject, MINDMAPS.get(subject) or {}, st,
                                   lesson_total=len(BY_SUBJECT[subject])))
+    out.append(_build_mindmap("大学三年路径", ROADMAP, st, kind="roadmap"))
     return out
 
 
@@ -388,6 +474,12 @@ def mindmaps(db: Session = Depends(get_db), user: User = Depends(get_current_use
 def point_detail(code: str, db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     point = _require(db, user, code)
+    # 记下「当前停在哪一课」：下次进引导式学习直接回到这里。
+    # 写在详情接口里而不是单开一个上报接口 —— 打开一课是这个接口唯一的调用场景，
+    # 前端每切一次课必然打一次，不会漏记。
+    if user.character and user.character.last_point_code != code:
+        user.character.last_point_code = code
+        db.commit()
     prog = _progress(db, user).get(code)
     # 习题只下发题干和选项，答案与解析留在服务端
     quizzes = [

@@ -306,6 +306,14 @@ class LearnPointBrief(BaseModel):
     status: str          # locked / unlocked / completed
 
 
+class LearnResume(BaseModel):
+    """上次停留在哪一课。字段全为空表示没有记录/记录已失效，前端自行退回默认逻辑。"""
+    code: str = ""
+    title: str = ""
+    subject: str = ""
+    stage: str = ""
+
+
 class LearnQuizItem(BaseModel):
     """下发给前端的习题（不含答案与解析，判定在服务端做）。"""
 
@@ -358,7 +366,9 @@ class LessonSketch(BaseModel):
 class MindMapItem(BaseModel):
     """一个考点。code 为空表示「会考、但站内还没对应课程」。"""
 
-    name: str
+    name: str                    # 考官的问法（「面试考题」页的题干）
+    kp: str = ""                 # 知识点名词标签（「思维导图」页的节点）
+    answer: str = ""             # 标准答案，40~80 字
     code: Optional[str] = None
     hot: int = 2                 # 1 纵深 / 2 常问 / 3 几乎必问
     lesson_title: str = ""       # 对应课程标题，前端悬停提示用
@@ -375,6 +385,40 @@ class MindMapBranch(BaseModel):
 
     name: str
     items: list[MindMapItem] = []
+
+
+class QBankItem(BaseModel):
+    """一道面试考题。"""
+    q: str
+    kp: str = ""
+    answer: str = ""
+    hot: int = 2                 # 3 必问 / 2 常问 / 1 纵深
+
+
+class QBankLesson(BaseModel):
+    """一道题挂在某门课程下。"""
+    code: str
+    title: str
+    order_no: int = 0
+    status: str = "unlocked"
+    items: list[QBankItem] = []
+
+
+class QBankModule(BaseModel):
+    """课程阶段 = 模块。items 用来装「没有对应课程」的题。"""
+    name: str
+    lessons: list[QBankLesson] = []
+    items: list[QBankItem] = []
+
+
+class QBankSubject(BaseModel):
+    subject: str
+    intro: str = ""
+    modules: list[QBankModule] = []
+    total: int = 0
+    hot_total: int = 0
+    lesson_covered: int = 0
+    lesson_total: int = 0
 
 
 class MindMapSubject(BaseModel):
