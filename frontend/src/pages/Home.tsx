@@ -60,6 +60,7 @@ export default function Home() {
   return (
     <div className="space-y-3">
       {/* ===== 海报 ===== */}
+      <div data-boot-wave="block">
       <HomePoster
         name={user?.real_name || character?.name || '冒险者'}
         subtitle={subtitle}
@@ -69,9 +70,10 @@ export default function Home() {
         exp={character?.exp ?? 0}
         expNext={character?.exp_to_next ?? 100}
       />
+      </div>
 
       {/* ===== 两个主入口（并排，比下面四个大） ===== */}
-      <div className="grid grid-cols-2 gap-2.5">
+      <div data-boot-wave="block" className="grid grid-cols-2 gap-2.5">
         {BIG_ENTRIES.map((e, i) => (
           <motion.button
             key={e.to}
@@ -133,7 +135,7 @@ export default function Home() {
       </div>
 
       {/* ===== 全部功能宫格：其余入口一个不落 ===== */}
-      <div className="game-panel p-3">
+      <div data-boot-wave="block" className="game-panel p-3">
         <div className="flex items-baseline justify-between">
           <div className="text-[13px] font-semibold text-slate-700">🧭 全部功能</div>
           <div className="text-[10px] text-slate-400">{MORE_ENTRIES.length} 个入口都在这</div>
@@ -162,7 +164,7 @@ export default function Home() {
       </div>
 
       {/* ===== 小装饰：冒险路线（虚线路径 + 四个里程碑） ===== */}
-      <div className="game-panel p-3">
+      <div data-boot-wave="block" className="game-panel p-3">
         <div className="flex items-baseline justify-between">
           <div className="text-[13px] font-semibold text-slate-700">🗺️ 冒险路线</div>
           <div className="text-[10px] text-slate-400">从语法到上线，四步走完</div>
@@ -201,7 +203,7 @@ export default function Home() {
       </div>
 
       {/* ===== 小装饰：冒险者手记 ===== */}
-      <div className="game-panel relative overflow-hidden p-3">
+      <div data-boot-wave="block" className="game-panel relative overflow-hidden p-3">
         <svg
           viewBox="0 0 320 60"
           preserveAspectRatio="none"

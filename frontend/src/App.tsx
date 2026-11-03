@@ -19,6 +19,7 @@ import Leaderboard from './pages/Leaderboard'
 import WrongBook from './pages/WrongBook'
 import Favorites from './pages/Favorites'
 import InterviewBank from './pages/InterviewBank'
+import BootGate from './boot/BootGate'
 
 function FullScreenSpin() {
   return (
@@ -85,4 +86,12 @@ function Routing() {
   )
 }
 
-export default Routing
+export default function App() {
+  return (
+    <>
+      <Routing />
+      {/* 入场动画盖在最外层：全屏、独立舞台，播完自己卸载 */}
+      <BootGate />
+    </>
+  )
+}

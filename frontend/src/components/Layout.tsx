@@ -4,6 +4,7 @@ import { App, Progress } from 'antd'
 import { MenuOutlined } from '@ant-design/icons'
 import { motion } from 'framer-motion'
 import { useAuth } from '../store/auth'
+import BrandMark from '../boot/BrandMark'
 import IcpFooter from './IcpFooter'
 import MobileDrawer, { useEdgeSwipe } from './MobileDrawer'
 import { ALL_ENTRIES, NAV_GROUPS } from '../nav'
@@ -102,7 +103,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen md:flex">
       {/* ===== 手机：极简品牌条（导航在底部） ===== */}
       {!hideChrome && (
-        <header className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-indigo-200">
+        <header data-boot-wave="bar" className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-indigo-200">
           <div className="flex items-center gap-2 px-2 h-11">
             <button
               data-menu-btn="1"
@@ -112,7 +113,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               <MenuOutlined className="text-[17px]" />
             </button>
-            <span className="text-lg leading-none">🌌</span>
+            <BrandMark size={22} level={character?.level} tone="dark" />
             <span className="font-bold text-[15px] text-indigo-700 truncate">码境 CodeRealm</span>
             {character && (
               <span className="ml-auto text-[11px] text-amber-600 font-medium shrink-0">
@@ -125,9 +126,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ===== 桌面：左侧固定导航 ===== */}
       {!hideChrome && (
-        <aside className="hidden md:flex w-56 shrink-0 border-r border-indigo-200 bg-white/80 backdrop-blur flex-col sticky top-0 h-screen z-20">
+        <aside data-boot-wave="bar" className="hidden md:flex w-56 shrink-0 border-r border-indigo-200 bg-white/80 backdrop-blur flex-col sticky top-0 h-screen z-20">
           <div className="px-4 py-4 flex items-center gap-2">
-            <span className="text-3xl">🌌</span>
+            <BrandMark size={34} level={character?.level} tone="dark" />
             <div>
               <div className="font-bold text-indigo-700">码境 CodeRealm</div>
               <div className="text-[11px] text-slate-500">软件工程 · 游戏化学习</div>
@@ -192,7 +193,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* 主内容：手机端给底部 Tab 留出安全距离 */}
-      <main className="flex-1 min-w-0 pb-16 md:pb-0">
+      <main data-boot-wave="main" className="flex-1 min-w-0 pb-16 md:pb-0">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 10 }}
@@ -213,7 +214,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* ===== 手机：底部四 Tab（首页 / 引导式学习 / AI 导师 / 我的） ===== */}
       {!hideChrome && (
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-indigo-200">
+        <nav data-boot-wave="bar" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-indigo-200">
           <div className="flex items-stretch">
             {TABS.map((t) => {
               const active = t.match(location.pathname)

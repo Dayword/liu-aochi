@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import BrandMark from '../boot/BrandMark'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { App, Button, Input, Segmented } from 'antd'
 import { motion } from 'framer-motion'
@@ -124,7 +125,7 @@ export default function Auth() {
         className="game-panel w-full max-w-md p-6 md:p-8"
       >
         <div className="text-center mb-5">
-          <div className="text-4xl mb-2">🌌</div>
+          <BrandMark size={56} tone="dark" className="mx-auto mb-2" />
           <h1 className="text-xl font-bold text-indigo-700">码境 CodeRealm</h1>
           <p className="text-slate-500 text-xs mt-1">软件工程 · 游戏化 AI 学习</p>
         </div>

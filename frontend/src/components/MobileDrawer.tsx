@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import BrandMark from '../boot/BrandMark'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Progress } from 'antd'
 import { CloseOutlined, LogoutOutlined, RightOutlined } from '@ant-design/icons'
@@ -108,7 +109,7 @@ export default function MobileDrawer({
           >
             {/* 品牌 + 关闭 */}
             <div className="flex items-center gap-2 px-3.5 h-12 border-b border-indigo-100 shrink-0">
-              <span className="text-xl leading-none">🌌</span>
+              <BrandMark size={22} tone="dark" />
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-[14px] text-indigo-700 leading-tight truncate">
                   码境 CodeRealm

@@ -1,0 +1,104 @@
+/* 入场动画舞台。所有选择器都挂在 .boot-stage 下，不碰应用自身的类名。 */
+
+.boot-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout paint style;
+}
+
+.boot-scene {
+  position: absolute;
+  inset: 0;
+  will-change: opacity, transform;
+}
+
+/* 点阵：和 13 级封面同一套底纹语言，给深色底一点颗粒感 */
+.boot-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* 中心压一层柔和的暗角，保证字标在任何等级配色上都够白 */
+.boot-veil {
+  position: absolute;
+  inset: 0;
+  /* 两层：外围整体压暗做暗角；中心再压一小块，保证白字标在任何等级配色上都够对比 */
+  background:
+    radial-gradient(ellipse 46% 30% at 50% 50%, rgba(0, 0, 0, 0.42) 0%, rgba(0, 0, 0, 0) 72%),
+    radial-gradient(ellipse 62% 58% at 50% 46%, rgba(0, 0, 0, 0.04) 0%, rgba(0, 0, 0, 0.42) 100%);
+}
+
+.boot-star {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.24;
+  animation: bootTwinkle 6s ease-in-out infinite;
+}
+
+@keyframes bootTwinkle {
+  0%,
+  100% {
+    opacity: 0.14;
+  }
+  50% {
+    opacity: 0.62;
+  }
+}
+
+.boot-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  will-change: transform;
+}
+
+.boot-mark {
+  width: clamp(60px, 7vw, 92px);
+  height: auto;
+  flex: none;
+  overflow: visible;
+}
+
+/* pathLength=1 之后，dasharray/dashoffset 都按 1 归一化，描边就能「画」出来 */
+.boot-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.boot-word {
+  display: block;
+  color: #ffffff;
+  font-size: clamp(24px, 3.4vw, 42px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.2em;
+  white-space: nowrap;
+  clip-path: inset(0 100% 0 0);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.28);
+  will-change: clip-path, letter-spacing;
+}
+
+@media (max-width: 767px) {
+  .boot-center {
+    gap: 10px;
+  }
+  .boot-word {
+    font-size: 24px;
+  }
+}
+
+/* 用户关了动效就直接不显示（组件本身也会提前返回，这里是双保险） */
+@media (prefers-reduced-motion: reduce) {
+  .boot-stage {
+    display: none !important;
+  }
+}
