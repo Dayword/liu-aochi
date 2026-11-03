@@ -277,7 +277,7 @@ async def summarize_history(prev: str, messages: list[dict]) -> str:
     user += "新增对话：\n" + "\n".join(lines)
     text = await llm_chat(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.2, max_tokens=limit * 2)
+        temperature=0.2, max_tokens=max(2000, limit * 4))
     return (text or "").strip()[:limit]
 
 

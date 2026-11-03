@@ -89,12 +89,17 @@ async def _refresh_summary(session_id: int, fresh: list[dict]) -> None:
             return
         text = await ai.summarize_history(sess.summary or "", fresh)
         if not text:
+            print(f"[chat] 摘要为空 session={session_id} 条数={len(fresh)}", flush=True)
             return
         sess.summary = text
         sess.summary_upto_id = max(m.get("id", 0) for m in fresh)
         db.commit()
-    except Exception:
+        print(f"[chat] 摘要已更新 session={session_id} 条数={len(fresh)} "
+              f"长度={len(text)}字 游标={sess.summary_upto_id}", flush=True)
+    except Exception as e:
         db.rollback()
+        # 这里也必须留痕：静默失败会表现为「摘要永远不出现」，而外层一切正常。
+        print(f"[chat] 摘要失败 session={session_id} {type(e).__name__}: {str(e)[:200]}", flush=True)
     finally:
         db.close()
 
@@ -116,6 +121,8 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
             upto = (sess.summary_upto_id or 0) if sess else 0
             fresh = [m for m in dropped if m.get("id", 0) > upto]
             if len(fresh) >= settings.CHAT_SUMMARY_MIN_MSGS:
+                print(f"[chat] 排摘要任务 session={session_id} 待压={len(fresh)}条 "
+                      f"窗口={len(kept)}条", flush=True)
                 task = asyncio.create_task(_refresh_summary(session_id, fresh))
                 # 必须留引用：局部变量一丢，任务可能被 GC 掉
                 _BG_TASKS.add(task)
