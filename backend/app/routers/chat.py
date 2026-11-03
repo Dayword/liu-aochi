@@ -1,4 +1,5 @@
 """AI 导师对话路由（SSE 流式：把模型思考过程与正文实时推给前端）。"""
+import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -16,6 +17,9 @@ from ..services.rate_limit import SlidingWindowLimiter, enforce
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 _chat_limiter = SlidingWindowLimiter(settings.AI_CALL_PER_MINUTE, 60, "AI 对话")
+
+# 后台摘要任务：必须留强引用，否则 asyncio 只持有弱引用时任务可能被 GC 掉
+_BG_TASKS: set[asyncio.Task] = set()
 
 MENTORS = ["老架构师", "大厂面试官", "学霸学长", "Python 全栈导师", "测试大师", "运维骑士长"]
 
@@ -52,8 +56,10 @@ async def stream(body: ChatIn, request: Request, db: Session = Depends(get_db),
         session = db.get(ChatSession, body.session_id)
         if session is None or session.user_id != user.id:
             raise HTTPException(404, "会话不存在")
-        history = [{"role": m.role, "content": m.content} for m in db.query(ChatMessage).filter(
-            ChatMessage.session_id == session.id).order_by(ChatMessage.id).all()]
+        # 带上 id：摘要要记住「压到哪一条了」，只靠内容比对会在重复提问时错位
+        history = [{"id": m.id, "role": m.role, "content": m.content}
+                   for m in db.query(ChatMessage).filter(
+                       ChatMessage.session_id == session.id).order_by(ChatMessage.id).all()]
     else:
         session = ChatSession(user_id=user.id, mentor=body.mentor)
         db.add(session)
@@ -67,6 +73,32 @@ async def stream(body: ChatIn, request: Request, db: Session = Depends(get_db),
     )
 
 
+async def _refresh_summary(session_id: int, fresh: list[dict]) -> None:
+    """把滑出窗口的旧轮次压进 session.summary（后台任务）。
+
+    放在首字之前会把「首响 ~6s」拖成 ~10s，所以一律丢后台：
+    这一次对话用不上它没关系，下一轮读到的就是新摘要。
+    自己开 Session、自己 commit，失败只回滚自己，绝不影响主对话。
+    """
+    from ..ai import client as ai
+
+    db = SessionLocal()
+    try:
+        sess = db.get(ChatSession, session_id)
+        if sess is None:
+            return
+        text = await ai.summarize_history(sess.summary or "", fresh)
+        if not text:
+            return
+        sess.summary = text
+        sess.summary_upto_id = max(m.get("id", 0) for m in fresh)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 async def _chat_events(user_id: int, session_id: int, mentor: str,
                        history: list[dict], message: str):
     """流式生成器。这里单独开一个 Session：StreamingResponse 的生成器在依赖清理之后才跑。"""
@@ -76,11 +108,26 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
     db = SessionLocal()
     reply_text, quiz, summary = "", [], ""
     try:
+        # 历史按 token 预算成轮取舍：窗口内的原样发，窗口外的进摘要
+        sess = db.get(ChatSession, session_id)
+        kept, dropped = ai.split_history(history)
+        long_summary = (sess.summary or "") if sess else ""
+        if dropped:
+            upto = (sess.summary_upto_id or 0) if sess else 0
+            fresh = [m for m in dropped if m.get("id", 0) > upto]
+            if len(fresh) >= settings.CHAT_SUMMARY_MIN_MSGS:
+                task = asyncio.create_task(_refresh_summary(session_id, fresh))
+                # 必须留引用：局部变量一丢，任务可能被 GC 掉
+                _BG_TASKS.add(task)
+                task.add_done_callback(_BG_TASKS.discard)
+
         buf, emitted, sep_seen = "", 0, False
+        messages: list[dict] = []
         try:
             messages = ai.build_chat_messages(
-                db, mentor, message, history,
-                avoid=ai.recent_quiz_stems(db, user_id, 12))
+                db, mentor, message, kept,
+                avoid=ai.recent_quiz_stems(db, user_id, 12), summary=long_summary,
+                gap=bool(dropped) and not long_summary)
             async for kind, text in ai.stream_llm(messages):
                 if kind == "reasoning":
                     yield _sse({"type": "reasoning", "text": text})
@@ -102,7 +149,12 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
                         emitted = safe
             if not sep_seen and emitted < len(buf):
                 yield _sse({"type": "reply", "text": buf[emitted:]})
-        except Exception:
+        except Exception as e:
+            # 必须打日志：这个 except 一旦静默，线上就成了「模型挂了但用户看到一段
+            # 跑题的内置讲解」，冒烟全绿也发现不了（踩过，问「我叫什么」答「TCP 三次握手」）。
+            print(f"[chat] 模型调用失败 user={user_id} session={session_id} "
+                  f"prompt={sum(len(m.get('content') or '') for m in messages)}字 "
+                  f"{type(e).__name__}: {str(e)[:200]}", flush=True)
             if not buf:
                 # 模型不可用/超时 → 整体降级为内置讲解
                 reply_text = ai.fallback_reply(db, mentor, message)
@@ -111,6 +163,9 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
 
         reply_text, quiz, summary = ai.split_reply(buf)
         if not reply_text:
+            # 另一条静默兜底路径：模型只吐了题目 JSON、没吐正文。同样要留痕。
+            print(f"[chat] 正文为空，改用内置讲解 user={user_id} session={session_id} "
+                  f"buf={len(buf)}字", flush=True)
             reply_text = ai.fallback_reply(db, mentor, message)
             yield _sse({"type": "reply", "text": reply_text})
         if len(quiz) < 2:

@@ -138,7 +138,7 @@ MENTOR_SYSTEM = {
 # 正文与配套练习题之间的分隔符（放在 system 里告诉模型，解析时用它切分）
 QUIZ_MARK = "@@QUIZ@@"
 
-CHAT_MAX_TOKENS = 1600
+CHAT_MAX_TOKENS = 2600
 
 # 硬性约束：全项目只用 Python，代码示例不许出现其他语言
 PYTHON_ONLY_RULE = (
@@ -161,9 +161,73 @@ _QUIZ_RULES = (
 )
 
 
+def estimate_tokens(text: str) -> int:
+    """粗估 token 数。
+
+    不引 tiktoken：多一个依赖、服务器装包还得多走一遍内网源，而这里只需要
+    「大概别超预算」。中文按 1 字 1 token、其余按 4 字符 1 token 估，
+    再加 8 作为每条消息的角色标记/分隔开销。误差 ±20%，预算留了余量。
+    """
+    if not text:
+        return 0
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    return cjk + (len(text) - cjk) // 4 + 8
+
+
+def _shrink(content: str, limit: int = 6000) -> str:
+    """单条超长时保留头尾、掐掉中间：整条丢掉信息损失更大，硬塞又会爆上下文。"""
+    if len(content) <= limit:
+        return content
+    head, tail = limit // 3, limit - limit // 3
+    return f"{content[:head]}\n…（此处省略 {len(content) - limit} 字）…\n{content[-tail:]}"
+
+
+def split_history(history: list[dict], token_budget: int | None = None,
+                  max_turns: int | None = None) -> tuple[list[dict], list[dict]]:
+    """把历史切成「原样发送的窗口」和「滑出窗口、需要压缩的旧轮次」。
+
+    两个必须守住的点：
+      1. **按轮切，不按条切** —— 一刀切在 user / assistant 中间，模型会看到
+         一问没一答，或者开场就是一句 assistant（只有回答没有提问），读不懂语境。
+         这里先从后往前配成 [user, assistant] 整轮，再整轮取舍。
+      2. **至少保留最近一轮**，哪怕它自己就超预算（用户刚贴了一大段代码问问题，
+         把这一轮丢掉等于没问）。
+
+    返回 (kept, dropped)，两者拼起来等于原 history，顺序不变。
+    """
+    budget = token_budget if token_budget is not None else settings.CHAT_HISTORY_TOKENS
+    max_turns = max_turns if max_turns is not None else settings.CHAT_MAX_TURNS
+
+    turns: list[list[dict]] = []
+    cur: list[dict] = []
+    for m in reversed(history):
+        cur.append(m)
+        if m.get("role") == "user":       # 一轮以 user 开头，见到 user 就收一组
+            turns.append(list(reversed(cur)))
+            cur = []
+    # 走到这里 cur 非空 = 历史开头是一条没有提问的 assistant（旧数据被截过）。
+    # 它不能进窗口：否则模型看到的第一句就是「回答」，读不出在回答什么。
+    # 留在 dropped 里，由摘要去消化。
+
+    kept_turns: list[list[dict]] = []
+    used = 0
+    for turn in turns:
+        cost = sum(estimate_tokens(m.get("content") or "") for m in turn)
+        if kept_turns and (used + cost > budget or len(kept_turns) >= max_turns):
+            break
+        kept_turns.append(turn)
+        used += cost
+
+    kept_turns.reverse()
+    kept = [{**m, "content": _shrink(m.get("content") or "")} for turn in kept_turns for m in turn]
+    dropped = history[:len(history) - len(kept)]
+    return kept, dropped
+
+
 def build_chat_messages(db: Session, mentor: str, message: str, history: list[dict],
-                        avoid: list[str] | None = None) -> list[dict]:
-    """组装导师对话 messages：人设 + Python 语言约束 + 输出格式 + 知识库 + 近期已出题目 + 历史。"""
+                        avoid: list[str] | None = None,
+                        summary: str = "", gap: bool = False) -> list[dict]:
+    """组装导师对话 messages：人设 + Python 语言约束 + 输出格式 + 长期记忆 + 知识库 + 近期已出题目 + 历史。"""
     system = f"{MENTOR_SYSTEM.get(mentor, MENTOR_SYSTEM['老架构师'])}\n\n{PYTHON_ONLY_RULE}{_QUIZ_RULES}"
     ctx = knowledge_context(db, message)
     if ctx:
@@ -171,10 +235,50 @@ def build_chat_messages(db: Session, mentor: str, message: str, history: list[di
     if avoid:
         system += "\n\n近期已出过的题目（新题必须与它们明显不同）：\n" + \
                   "\n".join(f"- {s}" for s in avoid[:12])
+    if summary:
+        # 放在 system 最末尾：放中段会被后面的人设/输出格式冲淡，模型答「不知道」的概率明显变高。
+        # 两条硬约束（都踩过）：
+        #   1. 不能说「不要复述」——会被理解成「别提它」，模型转头就说「你没告诉过我」；
+        #   2. 必须写明「等同于用户亲口说过」，否则窗口里上一轮如果说过「我不知道」，
+        #      模型会顺着那个立场继续否认，哪怕摘要里就写着答案。
+        system += ("\n\n【已知背景｜回答前先看这里】下面是本会话更早对话的摘要。"
+                   "摘要里的信息等同于用户亲口告诉过你的事实，用户问起（哪怕只问「我叫什么」）"
+                   "就直接据此回答，不要说「不知道」「你没提过」：\n" + summary)
+    elif gap:
+        # 历史被截了、摘要还没压出来（首次越界那一轮就是这种情况：压缩要 9s 左右，
+        # 放同步会把首响拖到 15s）。这时候必须让它承认「我看不到」，而不是断言用户没说过。
+        system += ("\n\n【注意】本次对话更早的部分已被截断，且摘要尚未生成。"
+                   "如果用户提到你不掌握的信息，如实说明那段历史不在当前上下文中，"
+                   "绝不要说「你之前没有提过」。")
     messages = [{"role": "system", "content": system}]
-    messages.extend(history[-8:])
+    messages.extend(history)
     messages.append({"role": "user", "content": message})
     return messages
+
+
+async def summarize_history(prev: str, messages: list[dict]) -> str:
+    """把「已有摘要 + 刚滑出窗口的旧轮次」合并成一段新摘要（增量，不重压全量）。
+
+    只喂摘要 + 新对话，成本与总历史长度无关，轮数再多也保持常数级。
+    """
+    limit = settings.CHAT_SUMMARY_CHARS
+    system = (
+        "你是对话摘要器。把「已有摘要」和「新增对话」合并成一段事实清单，"
+        f"不超过 {limit} 字。只保留：用户身份与目标、项目与代码细节、已经确认的结论、尚未解决的问题。"
+        "不要写客套话，不要编造对话里没有出现过的信息，不要输出标题或 Markdown 列表符号。"
+    )
+    lines = []
+    for m in messages:
+        role = "用户" if m.get("role") == "user" else "导师"
+        lines.append(f"{role}：{(m.get('content') or '')[:800]}")
+    user = ""
+    if prev:
+        user += f"已有摘要：\n{prev}\n\n"
+    user += "新增对话：\n" + "\n".join(lines)
+    text = await llm_chat(
+        [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        temperature=0.2, max_tokens=limit * 2)
+    return (text or "").strip()[:limit]
 
 
 async def stream_llm(messages: list[dict], temperature: float = 0.6,
@@ -188,6 +292,8 @@ async def stream_llm(messages: list[dict], temperature: float = 0.6,
                "temperature": temperature, "max_tokens": max_tokens}
     async with _http_client().stream("POST", url, json=payload, headers=headers) as resp:
         resp.raise_for_status()
+        got_content = 0
+        finish_reason = None
         async for line in resp.aiter_lines():
             if not line.startswith("data:"):
                 continue
@@ -197,13 +303,23 @@ async def stream_llm(messages: list[dict], temperature: float = 0.6,
             if not chunk:
                 continue
             try:
-                delta = (json.loads(chunk).get("choices") or [{}])[0].get("delta") or {}
+                choice = (json.loads(chunk).get("choices") or [{}])[0]
             except Exception:
                 continue
+            delta = choice.get("delta") or {}
+            if choice.get("finish_reason"):
+                finish_reason = choice["finish_reason"]
             if delta.get("reasoning_content"):
                 yield "reasoning", delta["reasoning_content"]
             if delta.get("content"):
+                got_content += len(delta["content"])
                 yield "content", delta["content"]
+        # 推理模型把 max_tokens 全用在思考上时，流是正常结束的、但一个字正文都没有。
+        # 这里必须显式抛错：否则上层看到空 buf 会悄悄换成内置讲解，用户以为那就是回答。
+        if not got_content:
+            raise RuntimeError(
+                f"模型没有输出正文（finish_reason={finish_reason}，可能是推理占满了 "
+                f"max_tokens={max_tokens}）")
 
 
 def split_reply(text: str) -> tuple[str, list[dict], str]:

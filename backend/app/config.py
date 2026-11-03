@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     AI_MODEL: str = ""
     AI_TIMEOUT: int = 30
 
+    # 导师对话的历史记忆（滑动窗口 + 摘要压缩）
+    # 只把「最近若干轮」原样发给模型，滑出窗口的旧轮次压成一段摘要拼进 system。
+    # 预算按估算 token 算，不是按条数：一条贴了长代码的提问可能顶十轮闲聊。
+    # 实测：提示词每多 1000 字，首字延迟约 +0.9s（2773 字→4.2s，6513 字→7.5s）。
+    # 4000 已是「首响 < 10s」这条线内的上限：真实对话消息 50~150 字，够放十几轮。
+    CHAT_HISTORY_TOKENS: int = 4000   # 原样发送的历史预算（中文 1 字≈1 token）
+    CHAT_MAX_TURNS: int = 20          # 条数上限，防止一堆「嗯」「好的」把预算耗光
+    CHAT_SUMMARY_CHARS: int = 400     # 摘要长度上限（汉字），太长会挤占 system
+    CHAT_SUMMARY_MIN_MSGS: int = 4    # 滑出窗口不足这么多条就先不压，省调用
+
     # 代码沙箱
     # 公网长期运行时若担心沙箱逃逸，可设为 false 直接关闭「自由运行」入口
     # （课程判定用的内部 run_python 不受影响）。

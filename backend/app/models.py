@@ -205,6 +205,10 @@ class ChatSession(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     mentor: Mapped[str] = mapped_column(String(32), default="老架构师")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # 长期记忆：滑出对话窗口的旧轮次压缩成的一段事实清单，拼进 system 使用
+    summary: Mapped[str] = mapped_column(Text, default="")
+    # 已经压进 summary 的最后一条消息 id —— 增量摘要的游标，避免重复压缩同一段历史
+    summary_upto_id: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class ChatMessage(Base):

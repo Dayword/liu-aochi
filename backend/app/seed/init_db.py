@@ -20,6 +20,11 @@ _ADDED_COLUMNS = {
     "characters": [
         ("last_point_code", "VARCHAR(40) NOT NULL DEFAULT ''"),
     ],
+    # 导师对话的长期记忆（2026-11-03）：摘要 + 增量压缩游标
+    "chat_sessions": [
+        ("summary", "TEXT NULL"),
+        ("summary_upto_id", "INT NOT NULL DEFAULT 0"),
+    ],
 }
 
 # 已下线的种子数据：签到任务、代码币/连续签到成就、旧等级成就。

@@ -16,7 +16,10 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get('API_BASE', 'http://127.0.0.1:8001')
-USERNAME = 'aicheck' + str(int(time.time()))
+# 注册已改成学号制（11 位）+ 密码强度（大写字母 + 特殊符号），这里跟着改，
+# 否则自检第一步就 422，后面五条路径全跑不了（2026-11-03 修）。
+STUDENT_ID = '2099' + str(int(time.time()))[-7:]
+PASSWD = 'Aicheck@123'
 BUDGET = float(os.environ.get('AI_CHECK_BUDGET', 300))  # 总预算秒数，超了直接汇报
 
 # 兜底文案指纹：命中任一条 = 这次是降级，不是真模型
@@ -90,7 +93,8 @@ def record(name: str, ok: bool | None, dt: float, evidence: str):
 
 def main():
     s, d = req('POST', '/api/auth/register',
-               {'username': USERNAME, 'password': 'pass123456', 'nickname': 'AI自检'})
+               {'student_id': STUDENT_ID, 'real_name': '自检',
+                'password': PASSWD, 'confirm_password': PASSWD})
     if s != 200:
         print('注册失败，后端没起来？', s, d)
         return 2
@@ -119,14 +123,9 @@ def main():
         record('AI导师对话', False, time.time() - t, f'{type(e).__name__}: {e}')
 
     # 2 AI 实时出题（Match3，注意前缀是 /api/games/match3）
-    t = time.time()
-    try:
-        s, d = req('GET', '/api/games/match3/question?level_code=nvillage-1', token=token)
-        src = d.get('source', '?')
-        record('AI实时出题', s == 200 and src == 'ai', time.time() - t,
-               f'HTTP{s} source={src} stem={str(d.get("stem"))[:34]}')
-    except Exception as e:
-        record('AI实时出题', False, time.time() - t, f'{type(e).__name__}: {e}')
+    # 原「AI 实时出题」检查已删除：Match3 整块下线后出题改走 seed/game_bank 题库，
+    # 不再调大模型，留着只会天天报 404 假红。现在真正调模型的是下面四条 +
+    # 面试引导点评（有自己的 verify，不在本脚本里重复计费）。
 
     # 3 错题 AI 解析（故意答错）
     t = time.time()
