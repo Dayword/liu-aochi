@@ -51,49 +51,33 @@ export interface BootTiming {
   readyTimeout: number
 }
 
-export const BOOT_TIMING: Record<'desktop' | 'mobile', BootTiming> = {
-  desktop: {
-    total: 3060,
-    bgIn: 0,
-    orbit: 180,
-    orbitDur: 700,
-    planet: 500,
-    planetDur: 620,
-    dots: 1120,
-    dotsDur: 200,
-    word: 1000,
-    wordDur: 760,
-    track: 1080,
-    trackDur: 900,
-    pulse: 1700,
-    pulseDur: 900,
-    out: 2400,
-    outDur: 460,
-    wave: 2380,
-    end: 3040,
-    readyTimeout: 1200,
-  },
-  mobile: {
-    total: 2420,
-    bgIn: 0,
-    orbit: 140,
-    orbitDur: 560,
-    planet: 380,
-    planetDur: 480,
-    dots: 800,
-    dotsDur: 170,
-    word: 700,
-    wordDur: 600,
-    track: 780,
-    trackDur: 720,
-    pulse: 1280,
-    pulseDur: 700,
-    out: 1800,
-    outDur: 400,
-    wave: 1780,
-    end: 2400,
-    readyTimeout: 1000,
-  },
+/**
+ * 手机与桌面共用同一张表，不再分两套节奏。
+ *
+ * 曾经手机压缩到 2.4s，理由是「小屏等不了」。实际用下来是反的：
+ * 同一套分镜被加速后，字标擦出和收拢挤在一起，落定的那一下没了，
+ * 手机上看起来像「闪一下」而不是「长出来」。所以两边统一走这套时间点。
+ */
+export const BOOT_TIMING: BootTiming = {
+  total: 3060,
+  bgIn: 0,
+  orbit: 180,
+  orbitDur: 700,
+  planet: 500,
+  planetDur: 620,
+  dots: 1120,
+  dotsDur: 200,
+  word: 1000,
+  wordDur: 760,
+  track: 1080,
+  trackDur: 900,
+  pulse: 1700,
+  pulseDur: 900,
+  out: 2400,
+  outDur: 460,
+  wave: 2380,
+  end: 3040,
+  readyTimeout: 1200,
 }
 
 /** 星点位置（百分比，贴边分布，避开中心字标）。 */

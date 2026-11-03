@@ -33,8 +33,7 @@ export default function BootScreen({ level, onDone }: { level: number; onDone: (
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
-    const mobile = window.matchMedia('(max-width: 767px)').matches
-    const T = mobile ? BOOT_TIMING.mobile : BOOT_TIMING.desktop
+    const T = BOOT_TIMING
     const anims: Animation[] = []
     const timers: number[] = []
 
