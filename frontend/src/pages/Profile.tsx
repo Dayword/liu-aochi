@@ -240,7 +240,7 @@ export default function Profile() {
           percent={expPct}
           size="small"
           strokeColor={{ from: '#6366f1', to: '#a855f7' }}
-          trailColor="#e2e8f0"
+          trailColor="var(--t-line)"
           format={() => (
             <span className="text-[10px] text-slate-500">
               {character.exp}/{character.exp_to_next}
@@ -278,8 +278,8 @@ export default function Profile() {
             percent={learn?.pct ?? 0}
             size="small"
             showInfo={false}
-            strokeColor="#6366f1"
-            trailColor="#e2e8f0"
+            strokeColor="var(--t-brand)"
+            trailColor="var(--t-line)"
           />
           <div className="text-[10px] text-slate-400 mt-0.5 flex items-center">
             继续学习 <RightOutlined className="text-[8px] ml-0.5" />
@@ -392,7 +392,7 @@ export default function Profile() {
                   size="small"
                   showInfo={false}
                   strokeColor={f.unlocked_count === 3 ? '#f59e0b' : '#6366f1'}
-                  trailColor="#e2e8f0"
+                  trailColor="var(--t-line)"
                 />
               </button>
             )
@@ -573,7 +573,7 @@ export default function Profile() {
                   size="small"
                   showInfo={false}
                   strokeColor={t.unlocked ? '#f59e0b' : '#cbd5e1'}
-                  trailColor="#e2e8f0"
+                  trailColor="var(--t-line)"
                 />
               </div>
             ))}

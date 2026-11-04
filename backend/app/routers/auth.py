@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..database import get_db
 from ..models import Character, User
-from ..schemas import LoginIn, RegisterIn, TokenOut
+from ..schemas import ChangePasswordIn, LoginIn, RegisterIn, TokenOut
 from ..security import create_token, get_current_user, hash_password, verify_password
 from ..services import growth
 from ..services.rate_limit import SlidingWindowLimiter, enforce
@@ -21,6 +21,9 @@ _login_limiter = SlidingWindowLimiter(30, 60, "登录尝试")
 # 防批量注册：同一 IP 每小时最多 50 个账号。
 # 开学第一节课全班同时注册是真实场景，原来的 10 个会让后排的人干等一小时。
 _register_limiter = SlidingWindowLimiter(50, 3600, "注册")
+# 改密码要验旧密码，本质也是一次密码校验，同样可能被拿来爆破：
+# 每 IP 每分钟 10 次（正常用户不会连改十次，爆破也过不了这一关）
+_change_pwd_limiter = SlidingWindowLimiter(10, 60, "修改密码")
 
 
 @router.post("/register", response_model=TokenOut)
@@ -89,6 +92,27 @@ def guest(db: Session = Depends(get_db)):
         db.refresh(user)
         growth.unlock_levels(db, user)
     return TokenOut(access_token=create_token(user.id))
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordIn, request: Request,
+                    db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """改密码：先验旧密码，再写新哈希。
+
+    只换 password_hash，不动角色、经验、课程进度、收藏、错题。
+    已经发出去的 JWT 仍然有效（有效期 7 天）——
+    这是刻意的：学生在机房改完密码，不该被踢回登录页重新输一遍。
+    """
+    enforce(_change_pwd_limiter, request)
+    if not verify_password(body.old_password, user.password_hash):
+        raise HTTPException(400, "当前密码不正确")
+    if verify_password(body.new_password, user.password_hash):
+        raise HTTPException(400, "新密码不能和当前密码相同")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    print(f"[auth] 用户 {user.id}（{user.student_id or user.username}）修改了密码")
+    return {"ok": True}
 
 
 @router.get("/me")

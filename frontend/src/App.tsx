@@ -19,6 +19,7 @@ import Leaderboard from './pages/Leaderboard'
 import WrongBook from './pages/WrongBook'
 import Favorites from './pages/Favorites'
 import InterviewBank from './pages/InterviewBank'
+import Settings from './pages/Settings'
 import BootGate from './boot/BootGate'
 
 function FullScreenSpin() {
@@ -75,6 +76,8 @@ function Routing() {
           <Route path="/interview" element={<Interview />} />
           <Route path="/bugs" element={<BugHunter />} />
           <Route path="/profile" element={<Profile />} />
+          {/* 设置：主题 / 编辑器 / 账号 / 无障碍，入口在侧栏与抽屉底部 */}
+          <Route path="/settings" element={<Settings />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/wrong" element={<WrongBook />} />
           <Route path="/favorites" element={<Favorites />} />

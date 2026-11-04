@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { useSettings } from '../theme/ThemeProvider'
 
 /**
  * 行号 + 自动缩进的代码编辑区。
@@ -25,6 +26,9 @@ export default function CodeEditor({
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLPreElement>(null)
+  // 字号/字体/Tab 宽度/换行都来自「设置 → 编辑器」，改一处全站生效
+  const { settings } = useSettings()
+  const tab = ' '.repeat(settings.tabWidth)
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const ta = e.currentTarget
@@ -32,10 +36,10 @@ export default function CodeEditor({
       e.preventDefault()
       const s = ta.selectionStart
       const end = ta.selectionEnd
-      const next = value.slice(0, s) + '    ' + value.slice(end)
+      const next = value.slice(0, s) + tab + value.slice(end)
       onChange(next)
       requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = s + 4
+        ta.selectionStart = ta.selectionEnd = s + tab.length
       })
       return
     }
@@ -46,7 +50,7 @@ export default function CodeEditor({
       const lineStart = value.lastIndexOf('\n', s - 1) + 1
       const line = value.slice(lineStart, s)
       const indent = (line.match(/^[ \t]*/) || [''])[0]
-      const extra = line.trimEnd().endsWith(':') ? '    ' : ''
+      const extra = line.trimEnd().endsWith(':') ? tab : ''
       const insert = '\n' + indent + extra
       const next = value.slice(0, s) + insert + value.slice(end)
       onChange(next)
@@ -59,6 +63,12 @@ export default function CodeEditor({
   }
 
   const lineCount = value.split('\n').length
+  // 用 CSS 变量而不是写死 px：设置里改字号，这里不用重新渲染也不用传参
+  const codeStyle = {
+    fontFamily: 'var(--code-font)',
+    fontSize: 'var(--code-size)',
+    lineHeight: 'var(--code-line)',
+  } as const
 
   return (
     <div
@@ -67,7 +77,8 @@ export default function CodeEditor({
       <pre
         ref={gutterRef}
         aria-hidden
-        className="select-none shrink-0 overflow-hidden whitespace-pre text-right pl-2 pr-1.5 py-2.5 bg-slate-100 text-[13px] leading-[22px] font-mono text-slate-400"
+        className="select-none shrink-0 overflow-hidden whitespace-pre text-right pl-2 pr-1.5 py-2.5 bg-slate-100 font-mono text-slate-400"
+        style={codeStyle}
       >
         {Array.from({ length: lineCount }, (_, i) => i + 1).join('\n')}
       </pre>
@@ -79,8 +90,13 @@ export default function CodeEditor({
         onScroll={(e) => {
           if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop
         }}
+        wrap={settings.wrap ? 'soft' : 'off'}
         spellCheck={false}
-        className="flex-1 min-w-0 h-full bg-transparent px-2.5 py-2.5 text-[13px] leading-[22px] font-mono text-slate-800 outline-none resize-none"
+        className="flex-1 min-w-0 h-full bg-transparent px-2.5 py-2.5 font-mono text-slate-800 outline-none resize-none"
+        style={{
+          ...codeStyle,
+          whiteSpace: settings.wrap ? 'pre-wrap' : 'pre',
+        }}
         placeholder={placeholder}
       />
     </div>

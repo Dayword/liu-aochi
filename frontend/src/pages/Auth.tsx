@@ -5,18 +5,10 @@ import { App, Button, Input, Segmented } from 'antd'
 import { motion } from 'framer-motion'
 import { api, setToken } from '../api/client'
 import { useAuth } from '../store/auth'
+import { PWD_RULES } from '../lib/password'
 import IcpFooter from '../components/IcpFooter'
 
 type Mode = 'login' | 'register'
-
-/** 密码四类字符规则：与后端 app/schemas.py 的 password_problems() 保持一致 */
-const PWD_RULES = [
-  { key: 'len', label: '8~64 位', test: (p: string) => p.length >= 8 && p.length <= 64 },
-  { key: 'upper', label: '大写字母', test: (p: string) => /[A-Z]/.test(p) },
-  { key: 'lower', label: '小写字母', test: (p: string) => /[a-z]/.test(p) },
-  { key: 'digit', label: '数字', test: (p: string) => /\d/.test(p) },
-  { key: 'special', label: '特殊符号', test: (p: string) => /[^A-Za-z0-9\s]/.test(p) },
-]
 
 /**
  * 登录 / 注册页。

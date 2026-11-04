@@ -9,6 +9,7 @@ import {
   FormOutlined,
   HomeOutlined,
   ReadOutlined,
+  SettingOutlined,
   StarOutlined,
   TrophyOutlined,
   UserOutlined,
@@ -31,6 +32,12 @@ export interface NavEntry {
   desc: string
   /** 图标底色（Tailwind 渐变类，写在源码里才能被 JIT 扫到） */
   tone: string
+  /**
+   * 不进首页「全部功能」宫格。
+   * 用于设置这类「系统功能」：宫格留给学习功能，设置走侧栏/抽屉底部，
+   * 否则宫格从 9 个变 10 个，3 列会剩一个孤格（踩过）。
+   */
+  hideInGrid?: boolean
 }
 
 export interface NavGroup {
@@ -152,6 +159,15 @@ export const NAV_GROUPS: NavGroup[] = [
         emoji: '👤',
         desc: '进度 · 成就 · 资料',
         tone: 'from-slate-500 to-gray-600',
+      },
+      {
+        to: '/settings',
+        label: '设置',
+        icon: <SettingOutlined />,
+        emoji: '⚙️',
+        desc: '主题 · 编辑器 · 账号',
+        tone: 'from-slate-400 to-slate-600',
+        hideInGrid: true,
       },
     ],
   },

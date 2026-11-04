@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { App, Progress } from 'antd'
-import { MenuOutlined } from '@ant-design/icons'
+import { MenuOutlined, SettingOutlined } from '@ant-design/icons'
 import { motion } from 'framer-motion'
 import { useAuth } from '../store/auth'
 import BrandMark from '../boot/BrandMark'
@@ -162,33 +162,52 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             ))}
           </nav>
-          {character && (
-            <div className="p-3 border-t border-indigo-200">
-              <div className="text-xs font-medium truncate">
-                {user?.real_name || character.name}
-              </div>
-              <div className="text-[11px] text-slate-500 truncate">
-                {user?.student_id ? `学号 ${user.student_id}` : character.identity}
-              </div>
-              <div className="text-[11px] text-amber-600 mt-0.5">
-                Lv.{character.level} {character.title}
-              </div>
-              <Progress
-                className="mt-1"
-                percent={expPct}
-                size="small"
-                strokeColor="#7c3aed"
-                trailColor="#e2e8f0"
-                format={() => `${character.exp}/${character.exp_to_next}`}
-              />
+          {/* 底部：成长信息 + 设置/退出。
+              设置入口不放在 character 判断里——离线演示时没有角色，
+              放进判断会让设置按钮一起消失（学生就再也找不到主题在哪）。 */}
+          <div className="p-3 border-t border-indigo-200">
+            {character && (
+              <>
+                <div className="text-xs font-medium truncate">
+                  {user?.real_name || character.name}
+                </div>
+                <div className="text-[11px] text-slate-500 truncate">
+                  {user?.student_id ? `学号 ${user.student_id}` : character.identity}
+                </div>
+                <div className="text-[11px] text-amber-600 mt-0.5">
+                  Lv.{character.level} {character.title}
+                </div>
+                <Progress
+                  className="mt-1"
+                  percent={expPct}
+                  size="small"
+                  strokeColor="var(--t-brand)"
+                  trailColor="var(--t-line)"
+                  format={() => `${character.exp}/${character.exp_to_next}`}
+                />
+              </>
+            )}
+            <div className={`flex items-center gap-1 ${character ? 'mt-2' : ''}`}>
+              <button
+                data-nav="/settings"
+                onClick={() => navigate('/settings')}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] transition-colors hover:bg-slate-100 ${
+                  location.pathname.startsWith('/settings')
+                    ? 'text-indigo-600 font-medium'
+                    : 'text-slate-500 hover:text-indigo-600'
+                }`}
+              >
+                <SettingOutlined className="text-[12px]" />
+                设置
+              </button>
               <button
                 onClick={askLogout}
-                className="mt-2 w-full text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+                className="flex-1 py-1.5 rounded-lg text-[11px] text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 退出登录
               </button>
             </div>
-          )}
+          </div>
         </aside>
       )}
 

@@ -431,8 +431,8 @@ export default function Learn() {
         <Progress
           percent={subjectPoints.length ? Math.round((done / subjectPoints.length) * 100) : 0}
           size="small"
-          strokeColor="#6366f1"
-          trailColor="#e2e8f0"
+          strokeColor="var(--t-brand)"
+          trailColor="var(--t-line)"
           showInfo={false}
           className="flex-1"
         />

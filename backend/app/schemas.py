@@ -87,6 +87,28 @@ class TokenOut(BaseModel):
     token_type: str = "bearer"
 
 
+class ChangePasswordIn(BaseModel):
+    """改密码。规则与注册完全一致 —— 两处不一致的话，
+    用户会以为「注册时能用的密码，改的时候反而不让用」。"""
+
+    old_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_new_password(cls, v: str) -> str:
+        if not 8 <= len(v) <= 64:
+            raise ValueError(PASSWORD_RULE_TEXT)
+        # bcrypt 只吃前 72 字节，中文密码 24 个字就顶到上限，
+        # 不拦的话 hash 会静默截断，用户输完整的密码反而登不上。
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("密码过长（最多 72 字节，约 24 个汉字）")
+        missing = password_problems(v)
+        if missing:
+            raise ValueError(f"密码缺少：{'、'.join(missing)}")
+        return v
+
+
 # ---------- 角色 ----------
 class ClassInfo(BaseModel):
     key: str

@@ -156,7 +156,7 @@ export default function LevelMap() {
           size="small"
           showInfo={false}
           strokeColor={{ from: '#34d399', to: '#6366f1' }}
-          trailColor="#e2e8f0"
+          trailColor="var(--t-line)"
           className="mt-2"
         />
       </div>

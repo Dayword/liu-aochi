@@ -132,7 +132,7 @@ export default function Interview() {
               <Progress
                 percent={dims[d] || 0}
                 strokeColor={dims[d] >= 75 ? '#34d399' : dims[d] >= 60 ? '#d97706' : '#dc2626'}
-                trailColor="#e2e8f0"
+                trailColor="var(--t-line)"
               />
               <span className="w-8 text-right text-sm text-slate-500">{dims[d] || 0}</span>
             </div>

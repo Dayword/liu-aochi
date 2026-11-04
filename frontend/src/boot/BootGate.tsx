@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../store/auth'
+import { useSettings } from '../theme/ThemeProvider'
 import BootScreen from './BootScreen'
 
 /**
@@ -15,6 +16,7 @@ import BootScreen from './BootScreen'
  */
 export default function BootGate() {
   const { user, character, loading } = useAuth()
+  const { settings } = useSettings()
   const location = useLocation()
   const [show, setShow] = useState(false)
   const decidedRef = useRef(false)
@@ -27,10 +29,13 @@ export default function BootGate() {
 
     const params = new URLSearchParams(location.search)
     if (params.get('boot') === '0') return
+    // 设置里关掉入场动画 / 关掉界面动效，都视为「不播」——
+    // 关动效的人最烦的就是这种三秒不能操作的过场
+    if (!settings.boot || !settings.motion) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     setShow(true)
-  }, [loading, user, location.pathname, location.search])
+  }, [loading, user, location.pathname, location.search, settings.boot, settings.motion])
 
   if (!show) return null
 

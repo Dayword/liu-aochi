@@ -539,7 +539,7 @@ export default function Game() {
           showInfo={false}
           size="small"
           strokeColor={left <= 10 ? '#f43f5e' : '#6366f1'}
-          trailColor="#e2e8f0"
+          trailColor="var(--t-line)"
           className="mt-1"
         />
       </div>

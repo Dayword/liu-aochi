@@ -33,7 +33,9 @@ const BIG_ENTRIES = BIG_PATHS.map((p) => ({
   glow: GLOW[p],
 }))
 
-const MORE_ENTRIES = ALL_ENTRIES.filter((e) => e.to !== '/' && !BIG_PATHS.includes(e.to))
+const MORE_ENTRIES = ALL_ENTRIES.filter(
+  (e) => e.to !== '/' && !BIG_PATHS.includes(e.to) && !e.hideInGrid,
+)
 
 export default function Home() {
   const { character, user } = useAuth()
@@ -106,8 +108,8 @@ export default function Home() {
                     percent={learn?.pct ?? 0}
                     size="small"
                     showInfo={false}
-                    strokeColor="#6366f1"
-                    trailColor="#e2e8f0"
+                    strokeColor="var(--t-brand)"
+                    trailColor="var(--t-line)"
                   />
                   <div className="text-[10px] text-slate-400 leading-none mt-1">
                     已完成 {learn?.completed ?? 0} / {learn?.total ?? 135} 课时

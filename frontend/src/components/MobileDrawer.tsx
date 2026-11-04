@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import BrandMark from '../boot/BrandMark'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Progress } from 'antd'
-import { CloseOutlined, LogoutOutlined, RightOutlined } from '@ant-design/icons'
+import { CloseOutlined, LogoutOutlined, RightOutlined, SettingOutlined } from '@ant-design/icons'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAuth } from '../store/auth'
 import { NAV_GROUPS } from '../nav'
@@ -140,8 +140,8 @@ export default function MobileDrawer({
                   percent={expPct}
                   size="small"
                   showInfo={false}
-                  strokeColor="#7c3aed"
-                  trailColor="#e2e8f0"
+                  strokeColor="var(--t-brand)"
+                  trailColor="var(--t-line)"
                 />
               </div>
             )}
@@ -190,18 +190,31 @@ export default function MobileDrawer({
               ))}
             </nav>
 
-            {/* 退出登录 */}
+            {/* 设置 + 退出登录：设置放前面，它是高频操作（换主题、调字号） */}
             <div className="shrink-0 border-t border-indigo-100 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-              <button
-                onClick={() => {
-                  onClose()
-                  onLogout()
-                }}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] text-slate-500 active:bg-slate-100"
-              >
-                <LogoutOutlined className="text-[12px]" />
-                退出登录
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  data-nav="/settings"
+                  onClick={() => {
+                    onClose()
+                    navigate('/settings')
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] text-slate-500 active:bg-slate-100"
+                >
+                  <SettingOutlined className="text-[12px]" />
+                  设置
+                </button>
+                <button
+                  onClick={() => {
+                    onClose()
+                    onLogout()
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] text-slate-500 active:bg-slate-100"
+                >
+                  <LogoutOutlined className="text-[12px]" />
+                  退出登录
+                </button>
+              </div>
             </div>
           </motion.aside>
         </>

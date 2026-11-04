@@ -1,0 +1,420 @@
+/* ============================================================
+ * 主题层：把 Tailwind 硬编码色映射到 CSS 变量
+ *
+ * 为什么不逐个改 TSX：全站 18 个页面、830 处硬编码颜色类，
+ * 逐个替换既看不清影响面，又会把「深色卡片里的白字」一起改坏。
+ * 这里用属性选择器按**类名精确匹配**重定向，TSX 一行不用动：
+ *   [class~="bg-white"]  匹配 class 分词里恰好是 bg-white 的元素
+ *   [class~="bg-white/95"] 只匹配带透明度的那个，不会误伤 bg-white/20
+ *
+ * 特异性说明：`html[data-theme] [class~="x"]` 是 (0,2,1)，
+ * 高于 Tailwind 的单个工具类 (0,1,0) 和 hover 变体 (0,2,0)，
+ * 所以不需要 !important —— 这点很重要，!important 一旦加进去，
+ * 页面里所有临时覆盖都会失效，后面没法维护。
+ *
+ * 默认主题（daylight）的变量值 = 原来的硬编码值，所以「不换主题 = 视觉零变化」。
+ * ========================================================== */
+
+/* ---------- 1. 基底 ---------- */
+html {
+  --ui-scale: 1;
+  --t-bg: #f6f7fb;
+  --t-panel: #ffffff;
+  --t-panel-alt: #f1f3f9;
+  --t-ink: #1f2430;
+  --t-ink-2: #64748b;
+  --t-ink-3: #94a3b8;
+  --t-line: #e2e8f0;
+  --t-line-brand: #c7d2fe;
+  --t-brand: #6366f1;
+  --t-brand-dark: #4f46e5;
+  --t-brand-soft: #eef2ff;
+  --t-on-brand: #ffffff;
+  --t-accent: #d97706;
+  --t-glow-1: rgba(99, 102, 241, 0.07);
+  --t-glow-2: rgba(251, 191, 36, 0.06);
+  --code-font: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  --code-size: 13px;
+  --code-line: 22px;
+  background-color: var(--t-bg);
+}
+
+body {
+  background-color: var(--t-bg);
+  color: var(--t-ink);
+  background-image: none;
+  /* 界面缩放：整体放大，实现只此一行 */
+  zoom: var(--ui-scale);
+}
+
+/* 主题底色与两处柔光 */
+html[data-theme] body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, var(--t-glow-1), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, var(--t-glow-2), transparent);
+}
+
+::selection {
+  background: var(--t-brand-soft);
+  color: var(--t-brand-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--t-brand) 32%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--t-brand) 50%, transparent);
+}
+
+/* ---------- 2. 语义工具类（新代码优先用这些，别再写死颜色） ---------- */
+.t-panel {
+  background-color: var(--t-panel);
+  border-color: var(--t-line);
+}
+.t-panel-alt {
+  background-color: var(--t-panel-alt);
+}
+.t-ink {
+  color: var(--t-ink);
+}
+.t-ink-2 {
+  color: var(--t-ink-2);
+}
+.t-ink-3 {
+  color: var(--t-ink-3);
+}
+.t-line {
+  border-color: var(--t-line);
+}
+.t-brand {
+  color: var(--t-brand);
+}
+.t-brand-soft {
+  background-color: var(--t-brand-soft);
+}
+.t-on-brand {
+  color: var(--t-on-brand);
+}
+
+/* 项目里的通用卡片类走 @apply，生成的是固定颜色，得单独接变量 */
+.game-panel {
+  background-color: var(--t-panel);
+  border-color: var(--t-line);
+}
+
+/* ---------- 3. 中性色映射（所有主题都走，浅色下值等价 → 零变化） ---------- */
+
+/* 底色：卡片 / 侧栏 / 抽屉 / 弹层 */
+html[data-theme] [class~='bg-white'] {
+  background-color: var(--t-panel);
+}
+/* 带透明度的白：顶栏、底栏、悬浮控件。统一压成实心，
+   深色下反而更干净（不会透出滚动内容显得脏）。
+   用 /8 与 /9 前缀匹配，是为了把 /80 /85 /90 /95 一次收进来 ——
+   只写死几个精确值的话，新写一个 bg-white/85 又漏白（思维导图图例就这么漏的）。 */
+html[data-theme] [class~='bg-white/60'],
+html[data-theme] [class~='bg-white/70'],
+html[data-theme] [class*='bg-white/8'],
+html[data-theme] [class*='bg-white/9'] {
+  background-color: var(--t-panel);
+}
+/* ⚠️ bg-white/10 与 /20 是「深色海报上的白色叠加」，不在此列：
+   它们必须保持白色，否则等级封面上的进度槽会消失。 */
+
+html[data-theme] [class~='bg-slate-50'],
+html[data-theme] [class~='bg-slate-100'] {
+  background-color: var(--t-panel-alt);
+}
+html[data-theme] [class~='bg-slate-200'] {
+  background-color: var(--t-line);
+}
+html[data-theme] [class~='bg-[#f8f9fd]'] {
+  background-color: var(--t-panel-alt);
+}
+/* 代码块/内嵌区写死的近白底（全站 11 处 bg-[#f4f6fa]）：
+   不跟着变的话，深色主题下每个代码块都是一块白板 */
+html[data-theme] [class~='bg-[#f4f6fa]'],
+html[data-theme] [class~='bg-[#f6f7fb]'] {
+  background-color: var(--t-panel-alt);
+}
+
+/* 手绘知识图是**例外**：它是一张「纸」，SVG 里的文字、节点、连线
+   全是写死的深色（#312e81 / #64748b），背景一旦变深就整片看不见。
+   所以深色下保留浅底，只压暗一点再加投影 —— 让它像贴在深色页面上的纸，
+   而不是一块漏网的白。 */
+html[data-mode='dark'] [class~='bg-[#fdfdff]'] {
+  background-color: #f1f3fa;
+  filter: brightness(0.93);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+/* 文字三级 */
+html[data-theme] [class~='text-slate-900'],
+html[data-theme] [class~='text-slate-800'],
+html[data-theme] [class~='text-slate-700'] {
+  color: var(--t-ink);
+}
+html[data-theme] [class~='text-slate-600'],
+html[data-theme] [class~='text-slate-500'] {
+  color: var(--t-ink-2);
+}
+html[data-theme] [class~='text-slate-400'],
+html[data-theme] [class~='text-slate-300'],
+html[data-theme] [class~='text-slate-200'] {
+  color: var(--t-ink-3);
+}
+
+/* 描边 */
+html[data-theme] [class~='border-slate-100'],
+html[data-theme] [class~='border-slate-200'],
+html[data-theme] [class~='border-slate-200/80'],
+html[data-theme] [class~='border-slate-200/90'],
+html[data-theme] [class~='border-slate-300'] {
+  border-color: var(--t-line);
+}
+html[data-theme] [class~='divide-slate-100'] > :not([hidden]) ~ :not([hidden]),
+html[data-theme] [class~='divide-slate-200'] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--t-line);
+}
+
+/* 品牌色：靛蓝淡底 / 靛蓝文字 / 靛蓝描边
+   只动 600/700 与 50/100 —— 300/400 用在深色海报上，改了会糊 */
+html[data-theme] [class~='bg-indigo-50'],
+html[data-theme] [class~='bg-indigo-50/40'],
+html[data-theme] [class~='bg-indigo-50/70'],
+html[data-theme] [class~='bg-indigo-100'] {
+  background-color: var(--t-brand-soft);
+}
+html[data-theme] [class~='text-indigo-700'],
+html[data-theme] [class~='text-indigo-600'] {
+  color: var(--t-brand-dark);
+}
+html[data-theme] [class~='text-indigo-500'] {
+  color: var(--t-brand);
+}
+html[data-theme] [class~='border-indigo-100'],
+html[data-theme] [class~='border-indigo-200'],
+html[data-theme] [class~='border-indigo-300'] {
+  border-color: var(--t-line-brand);
+}
+/* 纯色按钮块（提交、主操作）跟着品牌色走 */
+html[data-theme] [class~='bg-indigo-600'] {
+  background-color: var(--t-brand);
+}
+html[data-theme] [class~='bg-indigo-500'] {
+  background-color: var(--t-brand);
+}
+
+/* hover / active 的中性底：深色下如果不管，鼠标一过就闪一块白 */
+html[data-theme] [class*='hover:bg-slate-']:hover,
+html[data-theme] [class*='hover:bg-white']:hover {
+  background-color: var(--t-panel-alt);
+}
+html[data-theme] [class*='active:bg-slate-']:active,
+html[data-theme] [class*='active:bg-white']:active {
+  background-color: var(--t-panel-alt);
+}
+html[data-theme] [class*='hover:bg-indigo-']:hover {
+  background-color: var(--t-brand-soft);
+}
+html[data-theme] [class*='hover:text-slate-']:hover {
+  color: var(--t-ink);
+}
+html[data-theme] [class*='hover:border-indigo-']:hover {
+  border-color: var(--t-brand);
+}
+
+/* ---------- 4. 深色专属：状态色块与彩色文字 ---------- */
+/* 浅色主题下 emerald-50 / emerald-700 本来就是对的，不能动；
+   深色下浅底块会变成一块刺眼的白板，必须压成低透明度的同色系。 */
+html[data-mode='dark'] [class*='bg-emerald-50'],
+html[data-mode='dark'] [class*='bg-emerald-100'] {
+  background-color: rgba(16, 185, 129, 0.14);
+}
+html[data-mode='dark'] [class*='bg-amber-50'],
+html[data-mode='dark'] [class*='bg-amber-100'] {
+  background-color: rgba(245, 158, 11, 0.14);
+}
+html[data-mode='dark'] [class*='bg-rose-50'],
+html[data-mode='dark'] [class*='bg-rose-100'] {
+  background-color: rgba(244, 63, 94, 0.14);
+}
+html[data-mode='dark'] [class*='bg-sky-50'],
+html[data-mode='dark'] [class*='bg-sky-100'] {
+  background-color: rgba(14, 165, 233, 0.14);
+}
+html[data-mode='dark'] [class*='bg-violet-50'],
+html[data-mode='dark'] [class*='bg-violet-100'] {
+  background-color: rgba(139, 92, 246, 0.16);
+}
+html[data-mode='dark'] [class*='bg-orange-50'],
+html[data-mode='dark'] [class*='bg-orange-100'] {
+  background-color: rgba(249, 115, 22, 0.14);
+}
+html[data-mode='dark'] [class*='bg-red-50'],
+html[data-mode='dark'] [class*='bg-red-100'] {
+  background-color: rgba(239, 68, 68, 0.14);
+}
+html[data-mode='dark'] [class*='bg-cyan-50'],
+html[data-mode='dark'] [class*='bg-cyan-100'] {
+  background-color: rgba(6, 182, 212, 0.14);
+}
+html[data-mode='dark'] [class*='bg-blue-50'],
+html[data-mode='dark'] [class*='bg-blue-100'] {
+  background-color: rgba(59, 130, 246, 0.14);
+}
+html[data-mode='dark'] [class*='bg-green-50'],
+html[data-mode='dark'] [class*='bg-green-100'] {
+  background-color: rgba(34, 197, 94, 0.14);
+}
+
+/* 深色底的彩色文字要提亮，否则 600/700 压在深底上几乎看不见 */
+html[data-mode='dark'] [class*='text-emerald-7'],
+html[data-mode='dark'] [class*='text-emerald-6'] {
+  color: #34d399;
+}
+html[data-mode='dark'] [class*='text-amber-7'],
+html[data-mode='dark'] [class*='text-amber-6'] {
+  color: #fbbf24;
+}
+html[data-mode='dark'] [class*='text-rose-7'],
+html[data-mode='dark'] [class*='text-rose-6'] {
+  color: #fb7185;
+}
+html[data-mode='dark'] [class*='text-sky-7'],
+html[data-mode='dark'] [class*='text-sky-6'] {
+  color: #38bdf8;
+}
+html[data-mode='dark'] [class*='text-violet-7'],
+html[data-mode='dark'] [class*='text-violet-6'] {
+  color: #a78bfa;
+}
+html[data-mode='dark'] [class*='text-orange-7'],
+html[data-mode='dark'] [class*='text-orange-6'] {
+  color: #fb923c;
+}
+html[data-mode='dark'] [class*='text-red-7'],
+html[data-mode='dark'] [class*='text-red-6'] {
+  color: #f87171;
+}
+html[data-mode='dark'] [class*='text-cyan-7'],
+html[data-mode='dark'] [class*='text-cyan-6'] {
+  color: #22d3ee;
+}
+html[data-mode='dark'] [class*='text-blue-7'],
+html[data-mode='dark'] [class*='text-blue-6'] {
+  color: #60a5fa;
+}
+html[data-mode='dark'] [class*='text-green-7'],
+html[data-mode='dark'] [class*='text-green-6'] {
+  color: #4ade80;
+}
+html[data-mode='dark'] [class*='text-emerald-300'],
+html[data-mode='dark'] [class*='text-emerald-400'] {
+  color: #6ee7b7;
+}
+
+/* 深色下的彩色描边同样要提亮 */
+html[data-mode='dark'] [class*='border-emerald-2'],
+html[data-mode='dark'] [class*='border-emerald-3'],
+html[data-mode='dark'] [class*='border-emerald-4'] {
+  border-color: rgba(52, 211, 153, 0.42);
+}
+html[data-mode='dark'] [class*='border-amber-2'],
+html[data-mode='dark'] [class*='border-amber-3'],
+html[data-mode='dark'] [class*='border-amber-4'] {
+  border-color: rgba(251, 191, 36, 0.42);
+}
+html[data-mode='dark'] [class*='border-rose-2'],
+html[data-mode='dark'] [class*='border-rose-3'],
+html[data-mode='dark'] [class*='border-rose-4'] {
+  border-color: rgba(251, 113, 133, 0.42);
+}
+
+/* ---------- 5. 背景纹理 ---------- */
+html[data-texture='grid'] body {
+  background-image:
+    linear-gradient(var(--t-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--t-line) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 50% at 20% -10%, var(--t-glow-1), transparent);
+  background-size: 32px 32px, 32px 32px, auto;
+  background-attachment: fixed;
+}
+html[data-texture='dots'] body {
+  background-image:
+    radial-gradient(var(--t-line) 1.2px, transparent 1.2px),
+    radial-gradient(ellipse 80% 50% at 20% -10%, var(--t-glow-1), transparent);
+  background-size: 20px 20px, auto;
+  background-attachment: fixed;
+}
+html[data-texture='scan'] body {
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--t-ink) 4%, transparent) 0 1px,
+      transparent 1px 4px
+    ),
+    radial-gradient(ellipse 80% 50% at 20% -10%, var(--t-glow-1), transparent);
+  background-attachment: fixed;
+}
+
+/* ---------- 6. 动效开关 ---------- */
+/* 关掉后 transition/animation 直接跳到终态；framer-motion 的动画在
+   ThemeProvider 之外的 MotionConfig 里关（JS 驱动的动画 CSS 管不到）。 */
+html[data-motion='off'] *,
+html[data-motion='off'] *::before,
+html[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ---------- 7. 高对比 ---------- */
+html[data-contrast='high'] [class~='text-slate-400'],
+html[data-contrast='high'] [class~='text-slate-300'],
+html[data-contrast='high'] [class~='text-slate-200'] {
+  color: var(--t-ink-2);
+}
+html[data-contrast='high'] [class~='border-slate-100'],
+html[data-contrast='high'] [class~='border-slate-200'] {
+  border-color: var(--t-ink-3);
+}
+
+/* ---------- 8. 键盘焦点 ---------- */
+html[data-focus='on'] :focus-visible {
+  outline: 2px solid var(--t-brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+html[data-focus='off'] :focus-visible {
+  outline: none;
+}
+
+/* ---------- 9. 主题特例 ---------- */
+/* 复古报：正文换衬线，但代码、数字口径、按钮标签保持无衬线 */
+html[data-theme='newsprint'] body {
+  font-family: 'Songti SC', 'STSong', Georgia, 'Noto Serif SC', serif;
+}
+html[data-theme='newsprint'] .font-mono,
+html[data-theme='newsprint'] code,
+html[data-theme='newsprint'] pre,
+html[data-theme='newsprint'] textarea {
+  font-family: var(--code-font);
+}
+
+/* 赛博霓虹：品牌色给一层微光，别的地方不加（加多了会脏） */
+html[data-theme='cyber'] [class~='bg-indigo-600'],
+html[data-theme='cyber'] [class~='bg-indigo-500'] {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--t-brand) 55%, transparent);
+}
+
+/* 纯黑 OLED：卡片之间靠 1px 描边分层，阴影在纯黑上看不见 */
+html[data-theme='oled'] [class~='bg-white'],
+html[data-theme='oled'] [class~='bg-white/95'],
+html[data-theme='oled'] [class~='bg-white/90'],
+html[data-theme='oled'] [class~='bg-white/80'] {
+  border-color: var(--t-line);
+}

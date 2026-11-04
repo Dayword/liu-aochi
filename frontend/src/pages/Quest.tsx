@@ -211,8 +211,8 @@ export default function Quest() {
         <Progress
           percent={Math.round(((question?.index ?? 1) - 1 + (result ? 0 : 0)) * 10)}
           showInfo={false}
-          strokeColor="#6366f1"
-          trailColor="#e2e8f0"
+          strokeColor="var(--t-brand)"
+          trailColor="var(--t-line)"
           className="mb-6"
         />
 
