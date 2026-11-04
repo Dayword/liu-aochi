@@ -40,7 +40,7 @@ import type { ThemeDef } from '../theme/themes'
 import { WALLPAPERS } from '../theme/wallpapers'
 import type { Wallpaper } from '../theme/wallpapers'
 import { delWallpaper, putWallpaper, shrinkImage } from '../lib/idb'
-import { playAmbient, setAmbientVolume, stopAmbient } from '../audio/ambient'
+import { RAIN_LEVELS, playAmbient, setAmbientVolume, stopAmbient } from '../audio/ambient'
 import { focusTimeText, startFocus, useFocus } from '../focus/store'
 
 /* ============================================================
@@ -266,10 +266,12 @@ function WallCard({
 
 const AMBIENTS: { id: AmbientId; label: string; desc: string }[] = [
   { id: 'none', label: '无', desc: '关掉' },
-  { id: 'rain', label: '雨声', desc: '白噪声滤出来的雨' },
-  { id: 'cafe', label: '咖啡馆', desc: '低频人声底噪' },
-  { id: 'keys', label: '键盘', desc: '随机敲击声' },
-  { id: 'white', label: '白噪音', desc: '最朴素的底噪' },
+  { id: 'rain', label: '雨声', desc: '四档强度：细雨 / 小雨 / 中雨 / 大雨' },
+  { id: 'cafe', label: '咖啡馆', desc: '断续人声 + 杯碟碰撞' },
+  { id: 'keys', label: '键盘', desc: '成串的真实敲击节奏' },
+  { id: 'waves', label: '海浪', desc: '11 秒一个浪，带浪花' },
+  { id: 'fire', label: '篝火', desc: '火焰低鸣 + 随机爆裂' },
+  { id: 'white', label: '白噪音', desc: '粉噪声，最中性的底噪' },
 ]
 
 const PERSONAS: { id: PersonaId; desc: string }[] = [
@@ -336,7 +338,17 @@ export default function Settings() {
   const chooseAmbient = (id: AmbientId) => {
     set('ambient', id)
     if (id === 'none') stopAmbient()
-    else playAmbient(id, settings.ambientVolume)
+    else playAmbient(id, settings.ambientVolume, { rainLevel: settings.ambientRain })
+  }
+  const chooseRain = (lv: number) => {
+    set('ambientRain', lv)
+    // 切强度就是切声音：playAmbient 内部会交叉淡入淡出，不会「啪」一下
+    if (settings.ambient === 'none') {
+      set('ambient', 'rain')
+      playAmbient('rain', settings.ambientVolume, { rainLevel: lv })
+    } else if (settings.ambient === 'rain') {
+      playAmbient('rain', settings.ambientVolume, { rainLevel: lv })
+    }
   }
 
   // ---- 改密码 ----
@@ -422,9 +434,11 @@ export default function Settings() {
   const funSummary = [
     settings.robot ? '机器人' : '无机器人',
     settings.effects ? '特效' : '',
-    settings.ambient !== 'none'
-      ? AMBIENTS.find((a) => a.id === settings.ambient)?.label
-      : '',
+    settings.ambient === 'rain'
+      ? `雨声 · ${RAIN_LEVELS[settings.ambientRain] ?? '小雨'}`
+      : settings.ambient !== 'none'
+        ? AMBIENTS.find((a) => a.id === settings.ambient)?.label
+        : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -659,9 +673,21 @@ export default function Settings() {
               </button>
             ))}
           </div>
+
+          {settings.ambient === 'rain' && (
+            <div className="flex items-center gap-2 mt-2.5">
+              <span className="text-[11px] text-slate-400 shrink-0">雨势</span>
+              <Seg
+                value={settings.ambientRain}
+                onChange={chooseRain}
+                options={RAIN_LEVELS.map((label, i) => ({ label, value: i }))}
+              />
+            </div>
+          )}
+
           {settings.ambient !== 'none' && (
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-[11px] text-slate-400">音量</span>
+              <span className="text-[11px] text-slate-400 shrink-0">音量</span>
               <Slider
                 className="!flex-1"
                 min={0}
@@ -703,7 +729,7 @@ export default function Settings() {
             onClick={() => {
               if (settings.focusSound && settings.ambient === 'none') {
                 set('ambient', 'rain')
-                playAmbient('rain', settings.ambientVolume)
+                playAmbient('rain', settings.ambientVolume, { rainLevel: settings.ambientRain })
               }
               // 不再弹「已开始」的 toast：顶部的倒计时胶囊本身就是反馈，
               // 而 AntD message 默认出现在顶部正中，正好把胶囊盖住。

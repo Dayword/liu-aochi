@@ -18,7 +18,7 @@ export type UiScale = 1 | 1.08 | 1.16
 export type Texture = 'none' | 'grid' | 'dots' | 'scan'
 export type CodeFont = 'mono' | 'cascadia' | 'consolas' | 'fira'
 /** 环境音：全部用 Web Audio 实时合成，不引音频文件 */
-export type AmbientId = 'none' | 'rain' | 'cafe' | 'keys' | 'white'
+export type AmbientId = 'none' | 'rain' | 'cafe' | 'keys' | 'waves' | 'fire' | 'white'
 /** AI 导师人格：只改提示词，不改模型 */
 export type PersonaId = 'warm' | 'strict' | 'snarky'
 export type RobotSize = 'sm' | 'md' | 'lg'
@@ -53,6 +53,8 @@ export interface Settings {
   ambient: AmbientId
   /** 环境音音量 0~1 */
   ambientVolume: number
+  /** 雨的强度 0~3：细雨 / 小雨 / 中雨 / 大雨 */
+  ambientRain: number
   /** 点击 / 答对 / 升级特效 */
   effects: boolean
   /** 伴学小机器人 */
@@ -84,6 +86,7 @@ export const DEFAULT_SETTINGS: Settings = {
   wrap: true,
   ambient: 'none',
   ambientVolume: 0.35,
+  ambientRain: 1,
   effects: true,
   robot: true,
   robotSize: 'md',
@@ -251,7 +254,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // 这里只挂一个「首次点击就恢复」的监听，不硬启动、不报错。
   useEffect(() => {
     if (BOOT_SETTINGS.ambient !== 'none') {
-      armAmbient(BOOT_SETTINGS.ambient, BOOT_SETTINGS.ambientVolume)
+      armAmbient(BOOT_SETTINGS.ambient, BOOT_SETTINGS.ambientVolume, {
+        rainLevel: BOOT_SETTINGS.ambientRain,
+      })
     }
   }, [])
 
