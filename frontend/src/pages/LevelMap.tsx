@@ -29,6 +29,19 @@ const MODE_ICON: Record<string, string> = {
 }
 
 const DIFF_COLORS = ['#34d399', '#a3e635', '#d97706', '#ea580c', '#dc2626']
+
+/** 章节色带：[浅色主题用的淡底, 深色主题用的同色系饱和色] */
+const BAND_COLORS: [string, string][] = [
+  ['#eef2ff', '#6366f1'],
+  ['#ecfdf5', '#10b981'],
+  ['#fff7ed', '#f97316'],
+  ['#f5f3ff', '#8b5cf6'],
+  ['#f0f9ff', '#0ea5e9'],
+  ['#fdf2f8', '#ec4899'],
+  ['#f8fafc', '#64748b'],
+  ['#fefce8', '#eab308'],
+  ['#f7fee7', '#84cc16'],
+]
 const DIFF_LABELS = ['L1', 'L2', 'L3', 'L4', 'L5']
 
 export default function LevelMap() {
@@ -183,12 +196,21 @@ export default function LevelMap() {
             {chapters.map((c, ci) => {
               const x0 = PAD + c.start * NODE - NODE / 2
               const w = (c.end - c.start) * NODE + NODE
-              const hue = ['#eef2ff', '#ecfdf5', '#fff7ed', '#f5f3ff', '#f0f9ff', '#fdf2f8', '#f8fafc', '#fefce8', '#f7fee7'][ci % 9]
+              const [hue, hueDark] = BAND_COLORS[ci % BAND_COLORS.length]
               return (
                 <div key={c.scene.name}>
+                  {/* 色带的颜色交给 CSS：深色主题下要换成「同色系压进面板色」，
+                      这里写死的浅色会让整张地图在深色下变成一堵白墙 */}
                   <div
-                    className="absolute top-0 bottom-0"
-                    style={{ left: Math.max(0, x0), width: w, background: hue, opacity: 0.85 }}
+                    className="map-band absolute top-0 bottom-0"
+                    style={
+                      {
+                        left: Math.max(0, x0),
+                        width: w,
+                        '--band': hue,
+                        '--band-dark': hueDark,
+                      } as React.CSSProperties
+                    }
                   />
                   <div
                     className="absolute top-2 whitespace-nowrap text-[10px] font-medium text-slate-400"

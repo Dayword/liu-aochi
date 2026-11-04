@@ -641,7 +641,7 @@ export default function LessonVideo({ video, code }: { video: LearnVideo; code: 
             ))}
 
             {/* 字幕条 */}
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#f8f9fd] via-[#f8f9fd]/95 to-transparent px-5 pb-2.5 pt-8">
+            <div className="absolute inset-x-0 bottom-0 t-stage-fade px-5 pb-2.5 pt-8">
               <div className="text-[12.5px] leading-relaxed text-slate-700">{scene.say || ''}</div>
             </div>
 

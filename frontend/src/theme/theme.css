@@ -102,6 +102,15 @@ html[data-theme] body {
   border-color: var(--t-line);
 }
 
+/* 原生控件（滚动条、select 下拉、日期面板、autofill 底色）跟着主题走：
+   不写这条，深色主题下浏览器仍按浅色画滚动条和输入框内部 */
+html[data-mode='dark'] {
+  color-scheme: dark;
+}
+html[data-mode='light'] {
+  color-scheme: light;
+}
+
 /* ---------- 3. 中性色映射（所有主题都走，浅色下值等价 → 零变化） ---------- */
 
 /* 底色：卡片 / 侧栏 / 抽屉 / 弹层 */
@@ -178,10 +187,12 @@ html[data-theme] [class~='divide-slate-200'] > :not([hidden]) ~ :not([hidden]) {
 }
 
 /* 品牌色：靛蓝淡底 / 靛蓝文字 / 靛蓝描边
-   只动 600/700 与 50/100 —— 300/400 用在深色海报上，改了会糊 */
+   只动 600/700 与 50/100 —— 300/400 用在深色海报上，改了会糊。
+   ⚠️ 淡底必须用 `bg-indigo-50/` 前缀匹配把所有透明度变体一次收进来：
+   原来只枚举了 /40 和 /70，项目里新写的 bg-indigo-50/60 就漏成了白块。
+   `[class*='bg-indigo-50/']` 不会误伤 bg-indigo-500/40 —— 那串里是「500/」。 */
 html[data-theme] [class~='bg-indigo-50'],
-html[data-theme] [class~='bg-indigo-50/40'],
-html[data-theme] [class~='bg-indigo-50/70'],
+html[data-theme] [class*='bg-indigo-50/'],
 html[data-theme] [class~='bg-indigo-100'] {
   background-color: var(--t-brand-soft);
 }
@@ -227,44 +238,59 @@ html[data-theme] [class*='hover:border-indigo-']:hover {
 /* ---------- 4. 深色专属：状态色块与彩色文字 ---------- */
 /* 浅色主题下 emerald-50 / emerald-700 本来就是对的，不能动；
    深色下浅底块会变成一块刺眼的白板，必须压成低透明度的同色系。 */
-html[data-mode='dark'] [class*='bg-emerald-50'],
-html[data-mode='dark'] [class*='bg-emerald-100'] {
+/* 浅色主题下 emerald-50 / emerald-700 本来就是对的，不能动；
+   深色下浅底块会变成一块刺眼的白板，必须压成低透明度的同色系。
+   ⚠️ 选择器必须是 `[class~='bg-X-50']`（整词）+ `[class*='bg-X-50/']`（带透明度），
+   不能只写 `[class*='bg-X-50']` —— 那个连 bg-emerald-500 一起命中，
+   会把实心绿块压成 14% 透明（LessonVideo 的进度点就中招了）。 */
+html[data-mode='dark'] [class~='bg-emerald-50'],
+html[data-mode='dark'] [class*='bg-emerald-50/'],
+html[data-mode='dark'] [class~='bg-emerald-100'] {
   background-color: rgba(16, 185, 129, 0.14);
 }
-html[data-mode='dark'] [class*='bg-amber-50'],
-html[data-mode='dark'] [class*='bg-amber-100'] {
+html[data-mode='dark'] [class~='bg-amber-50'],
+html[data-mode='dark'] [class*='bg-amber-50/'],
+html[data-mode='dark'] [class~='bg-amber-100'] {
   background-color: rgba(245, 158, 11, 0.14);
 }
-html[data-mode='dark'] [class*='bg-rose-50'],
-html[data-mode='dark'] [class*='bg-rose-100'] {
+html[data-mode='dark'] [class~='bg-rose-50'],
+html[data-mode='dark'] [class*='bg-rose-50/'],
+html[data-mode='dark'] [class~='bg-rose-100'] {
   background-color: rgba(244, 63, 94, 0.14);
 }
-html[data-mode='dark'] [class*='bg-sky-50'],
-html[data-mode='dark'] [class*='bg-sky-100'] {
+html[data-mode='dark'] [class~='bg-sky-50'],
+html[data-mode='dark'] [class*='bg-sky-50/'],
+html[data-mode='dark'] [class~='bg-sky-100'] {
   background-color: rgba(14, 165, 233, 0.14);
 }
-html[data-mode='dark'] [class*='bg-violet-50'],
-html[data-mode='dark'] [class*='bg-violet-100'] {
+html[data-mode='dark'] [class~='bg-violet-50'],
+html[data-mode='dark'] [class*='bg-violet-50/'],
+html[data-mode='dark'] [class~='bg-violet-100'] {
   background-color: rgba(139, 92, 246, 0.16);
 }
-html[data-mode='dark'] [class*='bg-orange-50'],
-html[data-mode='dark'] [class*='bg-orange-100'] {
+html[data-mode='dark'] [class~='bg-orange-50'],
+html[data-mode='dark'] [class*='bg-orange-50/'],
+html[data-mode='dark'] [class~='bg-orange-100'] {
   background-color: rgba(249, 115, 22, 0.14);
 }
-html[data-mode='dark'] [class*='bg-red-50'],
-html[data-mode='dark'] [class*='bg-red-100'] {
+html[data-mode='dark'] [class~='bg-red-50'],
+html[data-mode='dark'] [class*='bg-red-50/'],
+html[data-mode='dark'] [class~='bg-red-100'] {
   background-color: rgba(239, 68, 68, 0.14);
 }
-html[data-mode='dark'] [class*='bg-cyan-50'],
-html[data-mode='dark'] [class*='bg-cyan-100'] {
+html[data-mode='dark'] [class~='bg-cyan-50'],
+html[data-mode='dark'] [class*='bg-cyan-50/'],
+html[data-mode='dark'] [class~='bg-cyan-100'] {
   background-color: rgba(6, 182, 212, 0.14);
 }
-html[data-mode='dark'] [class*='bg-blue-50'],
-html[data-mode='dark'] [class*='bg-blue-100'] {
+html[data-mode='dark'] [class~='bg-blue-50'],
+html[data-mode='dark'] [class*='bg-blue-50/'],
+html[data-mode='dark'] [class~='bg-blue-100'] {
   background-color: rgba(59, 130, 246, 0.14);
 }
-html[data-mode='dark'] [class*='bg-green-50'],
-html[data-mode='dark'] [class*='bg-green-100'] {
+html[data-mode='dark'] [class~='bg-green-50'],
+html[data-mode='dark'] [class*='bg-green-50/'],
+html[data-mode='dark'] [class~='bg-green-100'] {
   background-color: rgba(34, 197, 94, 0.14);
 }
 
@@ -314,6 +340,46 @@ html[data-mode='dark'] [class*='text-emerald-400'] {
   color: #6ee7b7;
 }
 
+/* 800/900 是最深的一档：浅色下压在淡底上正好，深色下直接「糊」进背景
+   （实测对比度只有 1.15~1.7，等于看不见）。这里统一提亮到同一色系的浅档。
+   ⚠️ 只写 600/700 是不够的 —— 课程标题、选项卡、代码 chip 大量用的是 800/900。 */
+html[data-mode='dark'] [class~='text-indigo-800'],
+html[data-mode='dark'] [class~='text-indigo-900'] {
+  color: #a5b4fc;
+}
+html[data-mode='dark'] [class~='text-emerald-800'],
+html[data-mode='dark'] [class~='text-emerald-900'] {
+  color: #6ee7b7;
+}
+html[data-mode='dark'] [class~='text-sky-800'],
+html[data-mode='dark'] [class~='text-sky-900'] {
+  color: #7dd3fc;
+}
+html[data-mode='dark'] [class~='text-rose-800'],
+html[data-mode='dark'] [class~='text-rose-900'] {
+  color: #fda4af;
+}
+html[data-mode='dark'] [class~='text-amber-800'],
+html[data-mode='dark'] [class~='text-amber-900'] {
+  color: #fcd34d;
+}
+html[data-mode='dark'] [class~='text-violet-800'],
+html[data-mode='dark'] [class~='text-violet-900'] {
+  color: #c4b5fd;
+}
+html[data-mode='dark'] [class~='text-orange-800'],
+html[data-mode='dark'] [class~='text-orange-900'] {
+  color: #fdba74;
+}
+html[data-mode='dark'] [class~='text-red-800'],
+html[data-mode='dark'] [class~='text-red-900'] {
+  color: #fca5a5;
+}
+html[data-mode='dark'] [class~='text-blue-800'],
+html[data-mode='dark'] [class~='text-blue-900'] {
+  color: #93c5fd;
+}
+
 /* 深色下的彩色描边同样要提亮 */
 html[data-mode='dark'] [class*='border-emerald-2'],
 html[data-mode='dark'] [class*='border-emerald-3'],
@@ -329,6 +395,75 @@ html[data-mode='dark'] [class*='border-rose-2'],
 html[data-mode='dark'] [class*='border-rose-3'],
 html[data-mode='dark'] [class*='border-rose-4'] {
   border-color: rgba(251, 113, 133, 0.42);
+}
+
+/* 品牌色淡渐变（用户卡、我的排名）：Tailwind 的 from-indigo-50/to-white
+   编译成写死的 rgb，深色下就是一块发光的浅色面板，必须换成变量 */
+.t-brand-fade {
+  background-image: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--t-brand) 12%, transparent),
+    transparent 70%
+  );
+}
+
+/* Tailwind 的 ring-offset 默认白色：深色下选中态会出现一圈白边 */
+html[data-mode='dark'] * {
+  --tw-ring-offset-color: var(--t-panel);
+}
+
+/* 思维导图画布的网格点阵：写死的 #e2e8f0 深色下会变成满屏发亮的小点 */
+.t-dot-grid {
+  background-image: radial-gradient(var(--t-line) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* 讲解视频底部的字幕渐隐：底色就是舞台底色，写成写死的 #f8f9fd 会在深色下白一条 */
+.t-stage-fade {
+  background-image: linear-gradient(
+    to top,
+    var(--t-panel-alt) 0%,
+    color-mix(in srgb, var(--t-panel-alt) 95%, transparent) 45%,
+    transparent 100%
+  );
+}
+
+/* 思维导图的分支节点：浅色主题用调色板里的淡底（--mm-* 由组件传进来），
+   深色主题用「饱和色 16% + 面板色」压出来，否则 12 棵树的分支会变成一片白块 */
+.mm-branch {
+  background: var(--mm-bg);
+  border-color: var(--mm-bd);
+  color: var(--mm-fg);
+}
+html[data-mode='dark'] .mm-branch {
+  background: color-mix(in srgb, var(--mm-line) 16%, var(--t-panel));
+  border-color: color-mix(in srgb, var(--mm-line) 45%, transparent);
+  color: color-mix(in srgb, var(--mm-line) 28%, #ffffff);
+}
+
+/* `!` 前缀的 important 变体是另一串 class，普通规则匹配不到 */
+html[data-mode='dark'] [class~='!bg-amber-50'] {
+  background-color: rgba(245, 158, 11, 0.14);
+}
+html[data-mode='dark'] [class~='!border-amber-300'] {
+  border-color: rgba(251, 191, 36, 0.45);
+}
+html[data-mode='dark'] [class~='!text-slate-500'] {
+  color: var(--t-ink-2);
+}
+html[data-mode='dark'] [class~='!text-amber-900'] {
+  color: #fcd34d;
+}
+
+/* 关卡地图的章节色带：颜色由 LevelMap 以 --band / --band-dark 传进来，
+   深色下把饱和色按 16% 混进面板色 —— 既能分辨章节，又不会亮成一片 */
+.map-band {
+  background: var(--band);
+  opacity: 0.85;
+}
+html[data-mode='dark'] .map-band {
+  background: color-mix(in srgb, var(--band-dark) 16%, var(--t-panel));
+  opacity: 1;
 }
 
 /* ---------- 5. 背景纹理 ---------- */

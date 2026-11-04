@@ -319,7 +319,7 @@ function GraphCanvas({
     <div
       ref={boxRef}
       data-canvas="1"
-      className="relative w-full h-full rounded-2xl border border-slate-200 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:18px_18px] overflow-hidden touch-none select-none cursor-grab active:cursor-grabbing"
+      className="relative w-full h-full rounded-2xl border border-slate-200 t-dot-grid overflow-hidden touch-none select-none cursor-grab active:cursor-grabbing"
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         pts.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
@@ -461,18 +461,27 @@ function GraphCanvas({
                     width: n.w,
                     height: n.h,
                     cursor: clickable ? 'pointer' : 'default',
-                    ...(isBranch ? { background: col.bg, borderColor: col.bd } : {}),
-                    ...(isLeaf && !noCourse ? { borderColor: '#e2e8f0' } : {}),
+                    // 分支配色交给 CSS 变量：深色主题下要用「同色系压进面板色」，
+                    // 写死的浅底（#eef2ff 这类）会变成满屏白块
+                    ...(isBranch
+                      ? ({
+                          '--mm-bg': col.bg,
+                          '--mm-bd': col.bd,
+                          '--mm-fg': col.fg,
+                          '--mm-line': col.line,
+                        } as React.CSSProperties)
+                      : {}),
+                    ...(isLeaf && !noCourse ? { borderColor: 'var(--t-line)' } : {}),
                   }}
                   className={[
                     'box-border flex items-center gap-1.5 px-2 relative overflow-hidden',
                     isRoot
                       ? 'rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white font-bold shadow-lg justify-center'
                       : isBranch
-                        ? 'rounded-xl border-2 font-semibold shadow-sm justify-between'
+                        ? 'mm-branch rounded-xl border-2 font-semibold shadow-sm justify-between'
                         : 'rounded-lg border leading-[19px] text-slate-700 bg-white',
                     isLeaf && noCourse ? 'border-dashed bg-slate-50 !text-slate-500' : '',
-                    isAction ? '!border-amber-300 !bg-amber-50' : '',
+                    isAction ? '!border-amber-300 !bg-amber-50 !text-amber-900' : '',
                     hit ? 'ring-2 ring-amber-400 ring-offset-1' : '',
                     isLeaf && n.code ? 'hover:shadow-md hover:border-indigo-300' : '',
                   ].join(' ')}
@@ -510,7 +519,8 @@ function GraphCanvas({
                     style={{
                       fontSize: isRoot ? ROOT_FS : isBranch ? BRANCH_FS : LEAF_FS,
                       wordBreak: 'break-word',
-                      color: isRoot ? '#fff' : isBranch ? col.fg : isAction ? '#92400e' : undefined,
+                      // 分支的颜色由 .mm-branch 继承下来，这里不要再写死
+                      color: isRoot ? '#fff' : undefined,
                     }}
                   >
                     {n.label}

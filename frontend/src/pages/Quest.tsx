@@ -298,7 +298,7 @@ export default function Quest() {
                     value={typeof answer === 'number' ? '' : answer}
                     onChange={(e) => setAnswer(e.target.value)}
                     placeholder={question.starter_code || '# 在此编写你的代码'}
-                    style={{ fontFamily: 'Consolas, monospace', background: '#f4f6fa' }}
+                    style={{ fontFamily: 'Consolas, monospace', background: 'var(--t-panel-alt)' }}
                   />
                 </div>
               )}

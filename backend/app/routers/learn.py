@@ -8,6 +8,7 @@
 科目之间互不阻塞（学 Python 卡住了，不影响去学 MySQL）。
 """
 import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -236,12 +237,18 @@ def _blank_match(answer: object, accepted: list) -> bool:
 
     不能一上来就去标点 —— 有些题的标准答案**本身就是标点**（比如 `:`、`,`、`/`），
     去掉标点后两边都变成空串，会被误判成答错。
+
+    NFKC 归一化是必须的：手机中文输入法打出来的「１」「：」「（）」是全角，
+    和题干里的半角不是一个码位，直接比字符串会把标准答案判成错。
     """
+    def norm(s: object) -> str:
+        return unicodedata.normalize("NFKC", str(s or ""))
+
     def soft(s: object) -> str:
-        return re.sub(r"\s+", "", str(s or "")).lower()
+        return re.sub(r"\s+", "", norm(s)).lower()
 
     def hard(s: object) -> str:
-        return re.sub(r"[\s,，。、.;；:：!！?？'\"“”‘’()（）]", "", str(s or "")).lower()
+        return re.sub(r"[\s,，。、.;；:：!！?？'\"“”‘’()（）]", "", norm(s)).lower()
 
     got_soft, got_hard = soft(answer), hard(answer)
     for a in accepted:
@@ -265,7 +272,10 @@ def _grade_quiz(q: dict, answer) -> dict:
         return {"correct": ok, "correct_answer": "对" if q["answer"] else "错",
                 "explanation": q.get("explanation", "")}
     if t == "blank":
-        accepted = q.get("accept") or [q["answer"]]
+        # ⚠️ 标准答案必须一起进白名单：accept 是「另外还接受的写法」，
+        # 不是「替代标准答案的写法」。之前直接 `q.get("accept") or [answer]`，
+        # 凡是写了 accept 的题，考生老老实实填标准答案反而判错（线上踩过）。
+        accepted = [q["answer"]] + [x for x in (q.get("accept") or []) if x]
         ok = bool(str(answer or "").strip()) and _blank_match(answer, accepted)
         return {"correct": ok, "correct_answer": q["answer"],
                 "explanation": q.get("explanation", "")}

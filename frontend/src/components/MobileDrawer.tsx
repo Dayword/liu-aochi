@@ -127,7 +127,7 @@ export default function MobileDrawer({
 
             {/* 用户卡：等级 + 经验 */}
             {character && (
-              <div className="px-3.5 py-2.5 border-b border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-white shrink-0">
+              <div className="px-3.5 py-2.5 border-b border-indigo-100 t-brand-fade shrink-0">
                 <div className="text-[13px] font-semibold text-slate-700 truncate">
                   {user?.real_name || character.name}
                 </div>

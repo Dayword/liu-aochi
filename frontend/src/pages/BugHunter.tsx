@@ -188,7 +188,7 @@ export default function BugHunter() {
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   rows={12}
-                  style={{ fontFamily: 'Consolas, monospace', background: '#f4f6fa', border: 'none' }}
+                  style={{ fontFamily: 'Consolas, monospace', background: 'var(--t-panel-alt)', border: 'none' }}
                 />
               </div>
             </div>

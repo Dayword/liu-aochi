@@ -5,10 +5,15 @@
 —— 这两个**绝对不能**通过自己的 checker，否则等于把答案直接发出去。
 历史上真出现过 9 处这种情况，所以固化成脚本。
 
-除了「答案泄漏」，还会挡住另外三类会直接坑到学生的问题：
+除了「答案泄漏」，还会挡住另外四类会直接坑到学生的问题：
   1. `example` 自己跑不通（比如用了沙箱黑名单里的 os / pathlib）—— 学生照着抄必然报错
   2. `example_output` 和实际输出不一致 —— 学生看到的是假的「运行结果」
   3. 有动手任务却没有判定方式（既无 checker 也无 cases）—— 学生写完点不动
+  4. 填空题填对标准答案却判错 —— 判分白名单把 answer 挤掉了（线上 34 道题中招）
+
+第 4 类不靠「读数据写得规不规范」来判，而是把标准答案 / 带空格 / 全角 / 别名 /
+乱码五种输入直接喂给 `_grade_quiz`，走真实判分函数。accept 本来就只该放「别名」，
+要求它包含 answer 是错的方向；要验的是判分行为本身。
 
 **只统计、不判错**的风格项（易错点条数、习题组合等）：历史课与新补充课的写法本来
 就不完全统一，硬卡会把 100 多条噪音混进来，反而淹没真问题。这里只做松检查：
@@ -24,6 +29,7 @@ sys.path.insert(0, ".")
 
 from app.seed import learn  # noqa: E402
 from app.services.code_runner import run_python  # noqa: E402
+from app.routers.learn import _grade_quiz  # noqa: E402
 
 REQUIRED = ["code", "stage", "title", "summary", "definition", "plain", "example",
             "example_output", "pitfalls", "task", "hint", "checker", "quizzes"]
@@ -39,6 +45,39 @@ checked = 0
 supplementary = 0
 quiz_shapes: set[tuple] = set()
 pitfall_counts: set[int] = set()
+
+# ── 填空题判分回归（全部 135 课，不受 runner 影响）────────────────────
+# 用户实测事故：填空填的是标准答案，判错。根因在 _grade_quiz ——
+# 白名单写成 `q.get("accept") or [q["answer"]]`，凡是另外写了 accept 的题，
+# 标准答案反而被挤掉，34 道填空题全线误判。
+# 这里不再"看数据写得规不规范"（accept 本来就该只放别名），而是直接
+# 把答案喂给真实判分函数：哪天白名单逻辑再被改坏，这一节立刻炸。
+total_blank = 0
+for point in learn.CURRICULUM:
+    code = point.get("code", "?")
+    for i, q in enumerate(point.get("quizzes") or [], 1):
+        if q.get("type") != "blank":
+            continue
+        total_blank += 1
+        std = str(q.get("answer") or "").strip()
+        if not std:
+            errors.append(f"{code}: 第 {i} 题是填空题但 answer 为空")
+            continue
+        if _grade_quiz(q, std)["correct"] is not True:
+            errors.append(f"{code}: 第 {i} 题填标准答案 {std!r} 被判错"
+                          "（判分白名单漏了 answer）")
+        # 手机输入法常带前后空格 / 全角，这两种都不该影响判分
+        if _grade_quiz(q, f"  {std}  ")["correct"] is not True:
+            errors.append(f"{code}: 第 {i} 题标准答案带前后空格就判错 {std!r}")
+        fullwidth = "".join(
+            chr(ord(c) + 0xFEE0) if c.isascii() and c.isalnum() else c for c in std)
+        if fullwidth != std and _grade_quiz(q, fullwidth)["correct"] is not True:
+            errors.append(f"{code}: 第 {i} 题全角输入 {fullwidth!r} 判错（缺 NFKC 归一化）")
+        for alias in (q.get("accept") or []):
+            if alias and _grade_quiz(q, alias)["correct"] is not True:
+                errors.append(f"{code}: 第 {i} 题 accept 里的别名叫法 {alias!r} 判错（别名失效）")
+        if _grade_quiz(q, "这条乱码不可能答对")["correct"] is not False:
+            errors.append(f"{code}: 第 {i} 题乱填也能判对（标准答案 {std!r}）")
 
 for point in learn.CURRICULUM:
     code = point.get("code", "?")
@@ -118,6 +157,7 @@ for point in learn.CURRICULUM:
 
 print(f"检查了 {checked} 个 Python 知识点（共 {len(learn.CURRICULUM)} 个知识点）")
 print(f"其中补充课 {supplementary} 个（不参与主线解锁链条）")
+print(f"填空题 {total_blank} 道已喂真实判分函数验过（标准答案 / 前后空格 / 全角 / 别名 / 乱填）")
 print(f"习题组合 {len(quiz_shapes)} 种，易错点条数分布 {sorted(pitfall_counts)}")
 
 if notes:

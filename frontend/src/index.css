@@ -57,15 +57,12 @@ html {
   background: transparent;
 }
 
-/* AntD 浅色适配 */
-.ant-modal-content, .ant-drawer-content {
-  background: #ffffff !important;
-  color: #1f2430 !important;
-}
-.ant-modal-header, .ant-modal-title {
-  background: transparent !important;
-  color: #1f2430 !important;
-}
-.ant-radio-wrapper, .ant-checkbox-wrapper {
-  color: #1f2430 !important;
+/* AntD 的颜色**全部交给 ConfigProvider 的 token**（见 ThemeProvider.buildAntdTheme）：
+   darkAlgorithm + colorBgElevated = 主题面板色。
+   ⚠️ 这里绝对不能再写 `background: #fff !important` ——
+   主题切换前留下的一条 !important 会把弹窗和抽屉钉死成白色，
+   token 改得再对也压不过它（学习进度抽屉、确认框全是白板就是这么来的）。 */
+.ant-radio-wrapper,
+.ant-checkbox-wrapper {
+  color: inherit;
 }

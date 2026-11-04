@@ -74,7 +74,7 @@ export default function Leaderboard() {
 
       {/* 我的排名 */}
       {me.class_rank ? (
-        <div className="game-panel p-3 bg-gradient-to-br from-indigo-50 to-violet-50">
+        <div className="game-panel p-3 t-brand-fade">
           <div className="flex items-center gap-3">
             <div className="text-center shrink-0">
               <div className="text-2xl font-bold text-indigo-600">{me.class_rank}</div>
