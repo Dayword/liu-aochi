@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import { api, getToken } from '../api/client'
 import { useAuth } from '../store/auth'
+import { useSettings } from '../theme/ThemeProvider'
 import type { QuizItem } from '../types'
 
 interface Msg {
@@ -41,6 +42,7 @@ export default function Chat() {
   const navigate = useNavigate()
   const [mentors, setMentors] = useState<string[]>(['老架构师', '大厂面试官', '学霸学长'])
   const [mentor, setMentor] = useState('老架构师')
+  const { settings } = useSettings()
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<number | null>(null)
@@ -123,7 +125,13 @@ export default function Chat() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getToken() || ''}`,
           },
-          body: JSON.stringify({ mentor, message: content, session_id: sessionId }),
+          body: JSON.stringify({
+            mentor,
+            message: content,
+            session_id: sessionId,
+            // 人格只影响语气：后端把它拼进 system，不换模型
+            persona: settings.persona,
+          }),
         })
         if (!resp.ok || !resp.body) throw new Error(`请求失败 (${resp.status})`)
         const reader = resp.body.getReader()
@@ -158,7 +166,7 @@ export default function Chat() {
         setSending(false)
       }
     },
-    [input, sending, mentor, sessionId, refreshCharacter, applyEvent],
+    [input, sending, mentor, sessionId, refreshCharacter, applyEvent, settings.persona],
   )
 
   const pickOption = (msgIndex: number, quizIndex: number, optionIndex: number) => {

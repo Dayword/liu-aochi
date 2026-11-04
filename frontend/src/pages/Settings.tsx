@@ -1,52 +1,120 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { App as AntApp, Button, Input, Switch } from 'antd'
+import { App as AntApp, Button, Input, Slider, Switch } from 'antd'
 import {
   BgColorsOutlined,
   CheckCircleFilled,
   CodeOutlined,
+  CommentOutlined,
+  DownOutlined,
   InfoCircleOutlined,
   LockOutlined,
   LogoutOutlined,
+  PictureOutlined,
   SafetyOutlined,
   SettingOutlined,
+  SmileOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '../store/auth'
 import { api } from '../api/client'
 import { pwdProblems, ruleChips } from '../lib/password'
-import { CODE_FONT_STACK, useSettings } from '../theme/ThemeProvider'
-import type { CodeFont, Texture, UiScale } from '../theme/ThemeProvider'
+import {
+  CODE_FONT_STACK,
+  PERSONA_LABEL,
+  loadCustomWall,
+  resetCustomWallCache,
+  useSettings,
+} from '../theme/ThemeProvider'
+import type {
+  AmbientId,
+  CodeFont,
+  PersonaId,
+  RobotCorner,
+  RobotSize,
+  Texture,
+  UiScale,
+} from '../theme/ThemeProvider'
 import { THEMES } from '../theme/themes'
 import type { ThemeDef } from '../theme/themes'
+import { WALLPAPERS } from '../theme/wallpapers'
+import type { Wallpaper } from '../theme/wallpapers'
+import { delWallpaper, putWallpaper, shrinkImage } from '../lib/idb'
+import { playAmbient, setAmbientVolume, stopAmbient } from '../audio/ambient'
+import { focusTimeText, startFocus, useFocus } from '../focus/store'
 
 /* ============================================================
  * 小部件
  * ========================================================== */
 
+/**
+ * 折叠抽屉。默认全部收起 —— 六个板块全展开是一屏半的滚动，
+ * 手机上要划四下才能看到「修改密码」。
+ *
+ * 只允许同时开一个（手风琴）：展开状态存的是「哪一个是开的」，
+ * 点当前那个就收起来，点别的就把上一个替换掉。
+ */
 function Section({
   icon,
   title,
-  desc,
+  summary,
+  open,
+  onToggle,
   children,
 }: {
   icon: ReactNode
   title: string
-  desc?: string
+  summary?: string
+  open: boolean
+  onToggle: () => void
   children: ReactNode
 }) {
+  const inner = useRef<HTMLDivElement>(null)
+
+  // 收起来时把内容设为 inert：否则键盘 Tab 会跳进看不见的输入框，
+  // 屏幕阅读器也会把整段设置念出来（视觉上却是折叠的）。
+  useEffect(() => {
+    const el = inner.current
+    if (!el) return
+    if (open) el.removeAttribute('inert')
+    else el.setAttribute('inert', '')
+  }, [open])
+
   return (
-    <section className="game-panel p-3.5 md:p-4">
-      <div className="flex items-center gap-2 mb-1">
+    <section className="game-panel overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center gap-2.5 px-3.5 py-3 text-left hover:bg-slate-50/60 transition-colors"
+      >
         <span className="w-7 h-7 shrink-0 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-[14px]">
           {icon}
         </span>
-        <div className="min-w-0">
-          <div className="text-[13.5px] font-semibold text-slate-800 leading-tight">{title}</div>
-          {desc && <div className="text-[11px] text-slate-400 leading-tight mt-0.5">{desc}</div>}
+        <span className="text-[13.5px] font-semibold text-slate-800 leading-tight shrink-0">
+          {title}
+        </span>
+        {summary && (
+          <span className="ml-auto min-w-0 truncate text-[11px] text-slate-400 text-right">
+            {summary}
+          </span>
+        )}
+        <DownOutlined
+          className={`shrink-0 text-[11px] text-slate-400 transition-transform duration-300 ${
+            open ? 'rotate-180' : ''
+          } ${summary ? '' : 'ml-auto'}`}
+        />
+      </button>
+
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div ref={inner} className="overflow-hidden" aria-hidden={!open}>
+          <div className="px-3.5 pb-3.5">{children}</div>
         </div>
       </div>
-      <div>{children}</div>
     </section>
   )
 }
@@ -161,6 +229,55 @@ function ThemeCard({
   )
 }
 
+/** 壁纸卡：内置的用 CSS 渐变缩略，自定义的用真实图 */
+function WallCard({
+  wall,
+  active,
+  customUrl,
+  onClick,
+}: {
+  wall: Wallpaper
+  active: boolean
+  customUrl?: string | null
+  onClick: () => void
+}) {
+  const bg =
+    wall.id === 'custom'
+      ? customUrl
+        ? `url("${customUrl}")`
+        : 'repeating-linear-gradient(45deg, var(--t-line) 0 6px, transparent 6px 12px)'
+      : wall.thumb || 'var(--t-panel-alt)'
+  return (
+    <button
+      onClick={onClick}
+      title={wall.name}
+      className={`relative shrink-0 w-[62px] rounded-lg overflow-hidden border-2 transition-transform active:scale-95 ${
+        active ? 'border-indigo-500' : 'border-transparent'
+      }`}
+    >
+      <div
+        className="h-[42px] w-full"
+        style={{ backgroundImage: bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      />
+      <div className="text-[10px] py-0.5 text-center text-slate-500 bg-white/70">{wall.name}</div>
+    </button>
+  )
+}
+
+const AMBIENTS: { id: AmbientId; label: string; desc: string }[] = [
+  { id: 'none', label: '无', desc: '关掉' },
+  { id: 'rain', label: '雨声', desc: '白噪声滤出来的雨' },
+  { id: 'cafe', label: '咖啡馆', desc: '低频人声底噪' },
+  { id: 'keys', label: '键盘', desc: '随机敲击声' },
+  { id: 'white', label: '白噪音', desc: '最朴素的底噪' },
+]
+
+const PERSONAS: { id: PersonaId; desc: string }[] = [
+  { id: 'warm', desc: '先肯定再讲清楚，卡住时给台阶，适合刚开始学' },
+  { id: 'strict', desc: '追问细节、指出含糊表述，按面试标准要求你' },
+  { id: 'snarky', desc: '嘴上不留情，但答案照样给全，适合脸皮厚的时候' },
+]
+
 /* ============================================================
  * 页面
  * ========================================================== */
@@ -170,6 +287,11 @@ export default function Settings() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { message, modal } = AntApp.useApp()
+  const focus = useFocus()
+
+  // 手风琴：默认一个都不开
+  const [open, setOpen] = useState<string | null>(null)
+  const toggle = (id: string) => setOpen((cur) => (cur === id ? null : id))
 
   // ---- 改密码 ----
   const [oldPwd, setOldPwd] = useState('')
@@ -177,6 +299,47 @@ export default function Settings() {
   const [newPwd2, setNewPwd2] = useState('')
   const [pwdBusy, setPwdBusy] = useState(false)
 
+  // ---- 自定义壁纸 ----
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [customUrl, setCustomUrl] = useState<string | null>(null)
+  const [wallBusy, setWallBusy] = useState(false)
+
+  useEffect(() => {
+    void loadCustomWall().then(setCustomUrl)
+  }, [])
+
+  const onPickWall = async (file?: File | null) => {
+    if (!file) return
+    setWallBusy(true)
+    try {
+      const blob = await shrinkImage(file)
+      await putWallpaper(blob)
+      resetCustomWallCache()
+      setCustomUrl(await loadCustomWall())
+      set('wallpaper', 'custom')
+      message.success('壁纸已保存（只存在这台设备）')
+    } catch (e) {
+      message.error(e instanceof Error ? e.message : '图片处理失败')
+    } finally {
+      setWallBusy(false)
+    }
+  }
+
+  const removeWall = async () => {
+    await delWallpaper()
+    resetCustomWallCache()
+    setCustomUrl(null)
+    set('wallpaper', 'none')
+  }
+
+  // ---- 环境音 ----
+  const chooseAmbient = (id: AmbientId) => {
+    set('ambient', id)
+    if (id === 'none') stopAmbient()
+    else playAmbient(id, settings.ambientVolume)
+  }
+
+  // ---- 改密码 ----
   const submitPassword = async () => {
     if (!oldPwd || !newPwd) {
       message.warning('请填写当前密码和新密码')
@@ -248,15 +411,33 @@ export default function Settings() {
     })
   }
 
+  const lookSummary = [
+    theme.name,
+    settings.wallpaper !== 'none' ? '壁纸' : '',
+    settings.scale > 1 ? `${Math.round(settings.scale * 100)}%` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  const funSummary = [
+    settings.robot ? '机器人' : '无机器人',
+    settings.effects ? '特效' : '',
+    settings.ambient !== 'none'
+      ? AMBIENTS.find((a) => a.id === settings.ambient)?.label
+      : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
-    <div className="max-w-3xl mx-auto space-y-3">
+    <div className="max-w-3xl mx-auto space-y-2.5">
       <header className="px-1">
         <h1 className="text-[19px] font-bold text-slate-800 flex items-center gap-2 leading-tight">
           <SettingOutlined className="text-indigo-600" />
           设置
         </h1>
         <p className="text-[11.5px] text-slate-500 mt-1 leading-relaxed">
-          外观与偏好只保存在这台设备上，换设备需要重新设置；学习进度、收藏、错题存在服务器，不受影响。
+          外观与偏好只保存在这台设备上，换设备需要重新设置；学习进度、收藏、错题、专注记录存在服务器。
         </p>
       </header>
 
@@ -264,7 +445,9 @@ export default function Settings() {
       <Section
         icon={<BgColorsOutlined />}
         title="外观"
-        desc="10 套主题 · 深浅各 5 套，立即生效"
+        summary={lookSummary}
+        open={open === 'look'}
+        onToggle={() => toggle('look')}
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {THEMES.map((t) => (
@@ -280,49 +463,83 @@ export default function Settings() {
           当前：<span className="text-indigo-600 font-medium">{theme.name}</span> · {theme.desc}
         </div>
 
-        <div className="mt-1">
-          <Row label="界面缩放" hint="整体放大字号与控件，手机上一屏会少显示一点">
-            <Seg<UiScale>
-              value={settings.scale}
-              onChange={(v) => set('scale', v)}
-              options={[
-                { label: '标准', value: 1 },
-                { label: '大', value: 1.08 },
-                { label: '特大', value: 1.16 },
-              ]}
+        <Row label="壁纸" hint="铺在页面底层，所有卡片不透明，不会影响阅读" stack>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {WALLPAPERS.map((w) => (
+              <WallCard
+                key={w.id}
+                wall={w}
+                active={settings.wallpaper === w.id}
+                customUrl={customUrl}
+                onClick={() => {
+                  if (w.id === 'custom' && !customUrl) fileRef.current?.click()
+                  else set('wallpaper', w.id)
+                }}
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mt-1.5">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                void onPickWall(e.target.files?.[0])
+                e.currentTarget.value = ''
+              }}
             />
-          </Row>
-          <Row label="背景纹理" hint="只在页面空白处显示，不压卡片">
-            <Seg<Texture>
-              value={settings.texture}
-              onChange={(v) => set('texture', v)}
-              options={[
-                { label: '无', value: 'none' },
-                { label: '网格', value: 'grid' },
-                { label: '点阵', value: 'dots' },
-                { label: '扫描线', value: 'scan' },
-              ]}
-            />
-          </Row>
-          <Row label="入场动画" hint="每次打开网站播的那段星空动画，约 3 秒">
-            <Switch
-              checked={settings.boot}
-              onChange={(v) => set('boot', v)}
-              size="small"
-            />
-          </Row>
-          <Row label="界面动效" hint="页面切换、卡片悬浮的过渡；关掉后更省电">
-            <Switch
-              checked={settings.motion}
-              onChange={(v) => set('motion', v)}
-              size="small"
-            />
-          </Row>
-        </div>
+            <Button size="small" icon={<PictureOutlined />} loading={wallBusy} onClick={() => fileRef.current?.click()}>
+              {customUrl ? '换一张' : '上传图片'}
+            </Button>
+            {customUrl && (
+              <Button size="small" type="text" danger onClick={() => void removeWall()}>
+                移除
+              </Button>
+            )}
+            <span className="text-[10px] text-slate-400">压缩到 1600px，只存本机</span>
+          </div>
+        </Row>
+
+        <Row label="界面缩放" hint="整体放大字号与控件，手机上一屏会少显示一点">
+          <Seg<UiScale>
+            value={settings.scale}
+            onChange={(v) => set('scale', v)}
+            options={[
+              { label: '标准', value: 1 },
+              { label: '大', value: 1.08 },
+              { label: '特大', value: 1.16 },
+            ]}
+          />
+        </Row>
+        <Row label="背景纹理" hint="只在页面空白处显示，不压卡片">
+          <Seg<Texture>
+            value={settings.texture}
+            onChange={(v) => set('texture', v)}
+            options={[
+              { label: '无', value: 'none' },
+              { label: '网格', value: 'grid' },
+              { label: '点阵', value: 'dots' },
+              { label: '扫描线', value: 'scan' },
+            ]}
+          />
+        </Row>
+        <Row label="入场动画" hint="每次打开网站播的那段星空动画，约 3 秒">
+          <Switch checked={settings.boot} onChange={(v) => set('boot', v)} size="small" />
+        </Row>
+        <Row label="界面动效" hint="页面切换、卡片悬浮的过渡；关掉后更省电">
+          <Switch checked={settings.motion} onChange={(v) => set('motion', v)} size="small" />
+        </Row>
       </Section>
 
       {/* ==================== 编辑器 ==================== */}
-      <Section icon={<CodeOutlined />} title="编辑器" desc="影响动手任务与代码沙箱">
+      <Section
+        icon={<CodeOutlined />}
+        title="编辑器"
+        summary={`${settings.codeFontSize}px · ${settings.tabWidth} 空格`}
+        open={open === 'editor'}
+        onToggle={() => toggle('editor')}
+      >
         <Row label="代码字号">
           <Seg<number>
             value={settings.codeFontSize}
@@ -384,8 +601,170 @@ export default function Settings() {
         </div>
       </Section>
 
+      {/* ==================== 氛围与互动 ==================== */}
+      <Section
+        icon={<SmileOutlined />}
+        title="氛围与互动"
+        summary={funSummary}
+        open={open === 'fun'}
+        onToggle={() => toggle('fun')}
+      >
+        <Row label="伴学小机器人" hint="右下角的小家伙；随等级变形，答题时有反应">
+          <Switch checked={settings.robot} onChange={(v) => set('robot', v)} size="small" />
+        </Row>
+        {settings.robot && (
+          <>
+            <Row label="大小">
+              <Seg<RobotSize>
+                value={settings.robotSize}
+                onChange={(v) => set('robotSize', v)}
+                options={[
+                  { label: '小', value: 'sm' },
+                  { label: '中', value: 'md' },
+                  { label: '大', value: 'lg' },
+                ]}
+              />
+            </Row>
+            <Row label="位置">
+              <Seg<RobotCorner>
+                value={settings.robotCorner}
+                onChange={(v) => set('robotCorner', v)}
+                options={[
+                  { label: '右下', value: 'br' },
+                  { label: '左下', value: 'bl' },
+                ]}
+              />
+            </Row>
+          </>
+        )}
+
+        <Row label="点击与通关特效" hint="答对撒星星、连击计数、升级彩带；关掉后完全停掉动画">
+          <Switch checked={settings.effects} onChange={(v) => set('effects', v)} size="small" />
+        </Row>
+
+        <Row label="环境音" hint="全部实时合成，没有音频文件，不耗流量" stack>
+          <div className="flex flex-wrap gap-1.5">
+            {AMBIENTS.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => chooseAmbient(a.id)}
+                title={a.desc}
+                className={`px-2.5 py-1 rounded-lg text-[12px] border transition-colors ${
+                  settings.ambient === a.id
+                    ? 'border-indigo-400 bg-indigo-50 text-indigo-700 font-medium'
+                    : 'border-slate-200 text-slate-500'
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+          {settings.ambient !== 'none' && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-[11px] text-slate-400">音量</span>
+              <Slider
+                className="!flex-1"
+                min={0}
+                max={100}
+                value={Math.round(settings.ambientVolume * 100)}
+                onChange={(v) => {
+                  set('ambientVolume', v / 100)
+                  setAmbientVolume(v / 100)
+                }}
+                tooltip={{ formatter: (v) => `${v}%` }}
+              />
+            </div>
+          )}
+        </Row>
+
+        <Row label="专注时长" hint="番茄钟一轮多长；不发经验，只记录专注时间">
+          <Seg<25 | 45 | 50>
+            value={settings.focusMinutes}
+            onChange={(v) => set('focusMinutes', v)}
+            options={[
+              { label: '25 分钟', value: 25 },
+              { label: '45 分钟', value: 45 },
+              { label: '50 分钟', value: 50 },
+            ]}
+          />
+        </Row>
+        <Row label="专注时自动开环境音" hint="开始专注时如果环境音是关的，自动切到雨声">
+          <Switch
+            checked={settings.focusSound}
+            onChange={(v) => set('focusSound', v)}
+            size="small"
+          />
+        </Row>
+        <Row label="开始一轮专注" hint={focus.running ? `进行中 ${focusTimeText(focus.remain)}` : '开始后顶部会出现倒计时'}>
+          <Button
+            size="small"
+            type="primary"
+            disabled={focus.running}
+            onClick={() => {
+              if (settings.focusSound && settings.ambient === 'none') {
+                set('ambient', 'rain')
+                playAmbient('rain', settings.ambientVolume)
+              }
+              // 不再弹「已开始」的 toast：顶部的倒计时胶囊本身就是反馈，
+              // 而 AntD message 默认出现在顶部正中，正好把胶囊盖住。
+              startFocus(settings.focusMinutes)
+            }}
+          >
+            {focus.running ? '进行中' : '开始专注'}
+          </Button>
+        </Row>
+
+        {settings.easter && (
+          <Row label="彩蛋模式" hint="机器人偶尔说些不该说的话，首页会混进几句秘密格言">
+            <Switch checked={settings.easter} onChange={(v) => set('easter', v)} size="small" />
+          </Row>
+        )}
+      </Section>
+
+      {/* ==================== AI 导师 ==================== */}
+      <Section
+        icon={<CommentOutlined />}
+        title="AI 导师"
+        summary={PERSONA_LABEL[settings.persona]}
+        open={open === 'ai'}
+        onToggle={() => toggle('ai')}
+      >
+        <div className="space-y-1.5">
+          {PERSONAS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => set('persona', p.id)}
+              className={`w-full text-left rounded-xl border px-3 py-2 transition-colors ${
+                settings.persona === p.id
+                  ? 'border-indigo-400 bg-indigo-50/60'
+                  : 'border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12.5px] font-semibold text-slate-800">
+                  {PERSONA_LABEL[p.id]}
+                </span>
+                {settings.persona === p.id && (
+                  <CheckCircleFilled className="text-[11px] text-indigo-500" />
+                )}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{p.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 text-[11px] text-slate-400 leading-relaxed">
+          人格只改变说话方式，讲的内容仍是同一套课程口径；换人格不会丢对话历史。
+        </div>
+      </Section>
+
       {/* ==================== 账号与安全 ==================== */}
-      <Section icon={<SafetyOutlined />} title="账号与安全">
+      <Section
+        icon={<SafetyOutlined />}
+        title="账号与安全"
+        summary={user?.student_id ? `学号 ${user.student_id}` : ''}
+        open={open === 'account'}
+        onToggle={() => toggle('account')}
+      >
         <div className="rounded-xl border border-slate-200 p-2.5 mt-1.5">
           <div className="flex items-center gap-1.5 text-[12.5px] font-medium text-slate-700">
             <LockOutlined className="text-indigo-600" />
@@ -432,13 +811,7 @@ export default function Settings() {
               onPressEnter={submitPassword}
             />
           </div>
-          <Button
-            type="primary"
-            block
-            loading={pwdBusy}
-            onClick={submitPassword}
-            className="!mt-2"
-          >
+          <Button type="primary" block loading={pwdBusy} onClick={submitPassword} className="!mt-2">
             保存新密码
           </Button>
         </div>
@@ -456,7 +829,13 @@ export default function Settings() {
       </Section>
 
       {/* ==================== 关于与无障碍 ==================== */}
-      <Section icon={<InfoCircleOutlined />} title="关于与无障碍">
+      <Section
+        icon={<InfoCircleOutlined />}
+        title="关于与无障碍"
+        summary={`v${__APP_VERSION__}`}
+        open={open === 'about'}
+        onToggle={() => toggle('about')}
+      >
         <Row label="高对比" hint="加深次要文字与描边，光线强时更清楚">
           <Switch
             size="small"
@@ -465,13 +844,9 @@ export default function Settings() {
           />
         </Row>
         <Row label="键盘焦点描边" hint="用 Tab 键操作时高亮当前焦点，键盘党必备">
-          <Switch
-            size="small"
-            checked={settings.focusRing}
-            onChange={(v) => set('focusRing', v)}
-          />
+          <Switch size="small" checked={settings.focusRing} onChange={(v) => set('focusRing', v)} />
         </Row>
-        <Row label="恢复默认设置" hint="只重置外观与偏好，不动主题之外的数据">
+        <Row label="恢复默认设置" hint="只重置外观与偏好，不动学习数据">
           <Button
             size="small"
             onClick={() => {

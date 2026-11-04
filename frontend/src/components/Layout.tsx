@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { App, Progress } from 'antd'
 import { MenuOutlined, SettingOutlined } from '@ant-design/icons'
@@ -7,7 +7,11 @@ import { useAuth } from '../store/auth'
 import BrandMark from '../boot/BrandMark'
 import IcpFooter from './IcpFooter'
 import MobileDrawer, { useEdgeSwipe } from './MobileDrawer'
+import FxLayer from './FxLayer'
+import FocusHud from './FocusHud'
+import Robot from '../robot/Robot'
 import { ALL_ENTRIES, NAV_GROUPS } from '../nav'
+import { useSettings } from '../theme/ThemeProvider'
 
 /**
  * 底部四 Tab：手机端的高频导航。
@@ -50,7 +54,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { character, user, offline, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const { modal } = App.useApp()
+  const { modal, message } = App.useApp()
+  const { settings, set: setSetting } = useSettings()
   // 手机抽屉：☰ 打开，左边缘右滑也能打开
   const [drawer, setDrawer] = useState(false)
   const openDrawer = useCallback(() => setDrawer(true), [])
@@ -60,6 +65,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setDrawer(false)
   }, [location.pathname])
+
+  /**
+   * 隐藏彩蛋：2.5 秒内连点品牌标 7 次，解锁「彩蛋模式」。
+   * 不写任何提示 —— 写了就不叫彩蛋了。解锁后设置里多一个开关。
+   */
+  const taps = useRef<number[]>([])
+  const onLogoClick = () => {
+    const now = Date.now()
+    taps.current = [...taps.current.filter((t) => now - t < 2500), now]
+    if (taps.current.length < 7) return
+    taps.current = []
+    if (settings.easter) {
+      message.info('彩蛋早就解锁了，去设置里看看')
+      return
+    }
+    setSetting('easter', true)
+    message.success('彩蛋已解锁：设置 → 氛围与互动')
+  }
 
   const expPct = useMemo(() => {
     if (!character) return 0
@@ -113,8 +136,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             >
               <MenuOutlined className="text-[17px]" />
             </button>
-            <BrandMark size={22} level={character?.level} tone="dark" />
-            <span className="font-bold text-[15px] text-indigo-700 truncate">码境 CodeRealm</span>
+            <span onClick={onLogoClick} className="flex items-center gap-2 min-w-0">
+              <BrandMark size={22} level={character?.level} tone="dark" />
+              <span className="font-bold text-[15px] text-indigo-700 truncate">码境 CodeRealm</span>
+            </span>
             {character && (
               <span className="ml-auto text-[11px] text-amber-600 font-medium shrink-0">
                 Lv.{character.level} · {character.title}
@@ -127,7 +152,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       {/* ===== 桌面：左侧固定导航 ===== */}
       {!hideChrome && (
         <aside data-boot-wave="bar" className="hidden md:flex w-56 shrink-0 border-r border-indigo-200 bg-white/80 backdrop-blur flex-col sticky top-0 h-screen z-20">
-          <div className="px-4 py-4 flex items-center gap-2">
+          <div onClick={onLogoClick} className="px-4 py-4 flex items-center gap-2 cursor-default">
             <BrandMark size={34} level={character?.level} tone="dark" />
             <div>
               <div className="font-bold text-indigo-700">码境 CodeRealm</div>
@@ -147,6 +172,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     key={item.to}
                     to={item.to}
                     end={item.to === '/'}
+                    data-distraction={item.to === '/leaderboard' ? '1' : undefined}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
                         isActive
@@ -267,6 +293,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           离线演示模式 · 后端未连接
         </div>
       )}
+
+      {/* 全局装饰层：特效画布、专注倒计时、伴学机器人。
+          放在 Layout 里而不是 App 顶层，是为了让它们只出现在登录后的页面
+          （登录页不需要一个小机器人在旁边看你输密码）。 */}
+      <FxLayer />
+      <FocusHud />
+      <Robot />
     </div>
   )
 }

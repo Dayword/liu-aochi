@@ -418,3 +418,33 @@ html[data-theme='oled'] [class~='bg-white/90'],
 html[data-theme='oled'] [class~='bg-white/80'] {
   border-color: var(--t-line);
 }
+
+/* ---------- 10. 壁纸 ---------- */
+/* 壁纸铺在 html 上（body 让出底色），这样滚动时不会跟着内容一起滚，
+   配合 background-attachment: fixed 得到「固定背景」的效果。
+   壁纸本身已经在 JS 里压过一层主题底色（wallpapers.ts），
+   所以卡片上的文字对比度不依赖这张图的明暗。 */
+html[data-wall='on'] {
+  background-image: var(--wall-bg);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+html[data-wall='on'] body {
+  background-color: transparent;
+}
+
+/* ---------- 11. 专注模式 ---------- */
+/* 只藏被标记为「干扰」的东西（排行榜入口等），不动导航结构本身。
+   用 !important 是因为这些元素各自带 display 工具类。 */
+html[data-pomodoro='1'] [data-distraction] {
+  display: none !important;
+}
+
+/* ---------- 12. 机器人 / 特效的图层约束 ---------- */
+/* 动画期间禁止横向滚动条抖动 */
+.robo-wrap,
+.fx-layer {
+  touch-action: none;
+}

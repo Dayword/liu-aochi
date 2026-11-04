@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { App, Button, Drawer, Input, Progress, Spin } from 'antd'
 import ReactMarkdown from 'react-markdown'
 import { api } from '../api/client'
+import { recordAnswer } from '../lib/activity'
 import KnowledgeSketch from '../components/KnowledgeSketch'
 import LessonVideo from '../components/LessonVideo'
 import ProjectField from '../components/ProjectField'
@@ -336,6 +337,8 @@ export default function Learn() {
       })
       if (!alive.current) return
       setQuizResults((prev) => ({ ...prev, [q.index]: r }))
+      // 只记客观题：主观题 correct 为 null，没有对错可记
+      if (r.correct !== null && r.correct !== undefined) recordAnswer(r.correct)
       setCompleted(r.lesson_completed)
       if (r.lesson_completed) await refreshPoints()
     } catch (e) {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { App, Button, Spin } from 'antd'
 import { api } from '../api/client'
+import { recordAnswer } from '../lib/activity'
 import CodeEditor from '../components/CodeEditor'
 import Md from '../components/Md'
 import SplitPane from '../components/SplitPane'
@@ -77,6 +78,7 @@ export default function LearnPractice() {
       })
       if (!alive.current) return
       setResult(r)
+      recordAnswer(r.passed)
     } catch (e) {
       if (alive.current) message.error((e as Error).message)
     } finally {

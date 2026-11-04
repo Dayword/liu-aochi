@@ -149,6 +149,25 @@ PYTHON_ONLY_RULE = (
     "数据库用 sqlite3/SQLAlchemy，脚本用 Python 而不是 Shell）。"
 )
 
+# 人格只改「怎么说」，不改「说什么」：课程口径、Python-only 约束、
+# 250 字长度与出题格式对所有人生效。前端只传 id，不传提示词，
+# 避免有人篡改请求把整套 system 换掉。
+PERSONA_STYLE = {
+    "warm": (
+        "【说话风格｜温柔学姐】先接住问题（「这个问题问得挺关键」这类的一句话即可，不要每句都夸），"
+        "先给结论再展开；对方卡住时主动给台阶，把难点拆成两步。不要堆感叹号，不要自称学姐。"
+    ),
+    "strict": (
+        "【说话风格｜严厉面试官】直接给结论，不寒暄。讲完必须追问一个更深的点"
+        "（用「那如果……呢」的形式），并指出回答里含糊的地方，要求用具体名词、复杂度或边界条件说清。"
+        "可以严格，但不许贬低、不许人身攻击。"
+    ),
+    "snarky": (
+        "【说话风格｜毒舌同事】可以吐槽代码和思路本身（「这么写在生产上活不过一天」），"
+        "但吐槽完必须把正确做法、原因和代价完整给出。不骂人、不开黄腔、不针对提问者本人。"
+    ),
+}
+
 _QUIZ_RULES = (
     "\n\n输出要求（务必严格遵守）：\n"
     "1) 正文用 Markdown，精炼，控制在 250 字以内，不要长篇大论；\n"
@@ -226,9 +245,12 @@ def split_history(history: list[dict], token_budget: int | None = None,
 
 def build_chat_messages(db: Session, mentor: str, message: str, history: list[dict],
                         avoid: list[str] | None = None,
-                        summary: str = "", gap: bool = False) -> list[dict]:
+                        summary: str = "", gap: bool = False,
+                        persona: str = "warm") -> list[dict]:
     """组装导师对话 messages：人设 + Python 语言约束 + 输出格式 + 长期记忆 + 知识库 + 近期已出题目 + 历史。"""
-    system = f"{MENTOR_SYSTEM.get(mentor, MENTOR_SYSTEM['老架构师'])}\n\n{PYTHON_ONLY_RULE}{_QUIZ_RULES}"
+    system = f"{MENTOR_SYSTEM.get(mentor, MENTOR_SYSTEM['老架构师'])}\n\n{PYTHON_ONLY_RULE}"
+    system += "\n\n" + PERSONA_STYLE.get(persona, PERSONA_STYLE["warm"])
+    system += _QUIZ_RULES
     ctx = knowledge_context(db, message)
     if ctx:
         system += "\n\n可参考的内部知识库资料：\n" + ctx

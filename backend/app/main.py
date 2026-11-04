@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import Base, engine
-from .routers import (auth, bug_hunter, chat, code, games, growth, interview,
+from .routers import (focus, auth, bug_hunter, chat, code, games, growth, interview,
                       interview_guide, learn, levels, quests, user)
 
 
@@ -71,6 +71,7 @@ app.include_router(interview_guide.router)
 app.include_router(bug_hunter.router)
 app.include_router(code.router)
 app.include_router(growth.router)
+app.include_router(focus.router)
 app.include_router(games.router)
 app.include_router(learn.router)
 

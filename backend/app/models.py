@@ -360,3 +360,14 @@ class KnowledgeEntry(Base):
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     content: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(128), default="软件工程学习资料")
+
+
+class FocusSession(Base):
+    """一次番茄钟。只记时长，不参与经验/等级（经验只认课程完成）。"""
+
+    __tablename__ = "focus_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    minutes: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)

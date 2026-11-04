@@ -226,6 +226,8 @@ class ChatIn(BaseModel):
     mentor: str = "老架构师"
     message: str
     session_id: Optional[int] = None
+    # 人格只改说话方式，不改内容口径；未知值按 warm 处理
+    persona: str = "warm"
 
 
 # ---------- 面试 ----------

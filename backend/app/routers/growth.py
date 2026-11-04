@@ -1,5 +1,6 @@
 """成长相关路由：错题本、收藏、成就墙、每日任务、排行榜、能力雷达。"""
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -191,3 +192,93 @@ def share(db: Session = Depends(get_db), user: User = Depends(get_current_user))
 @router.get("/radar")
 def radar(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return growth.radar_data(db, user)
+
+
+@router.get("/weekly-report")
+def weekly_report(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """本周学习报告：周一到周日。
+
+    数据全部来自已有表，不新建「报告表」——报告是聚合视图，
+    存一份下来只会和真实进度对不上。
+    """
+    from datetime import date, datetime, time, timedelta
+
+    from ..models import Character, FocusSession, LearnProgress
+    from ..seed import learn as seed_learn
+    from ..services import growth as growth_svc
+
+    today = date.today()
+    start = today - timedelta(days=today.weekday())          # 本周一
+    start_dt = datetime.combine(start, time.min)
+    WEEK = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+
+    rows = db.query(LearnProgress).filter(
+        LearnProgress.user_id == user.id,
+        LearnProgress.completed_at.is_not(None),
+        LearnProgress.completed_at >= start_dt).all()
+
+    per_day = [0] * 7
+    subject_count: dict[str, int] = {}
+    for r in rows:
+        d = r.completed_at.date() if r.completed_at else None
+        if d and 0 <= (d - start).days < 7:
+            per_day[(d - start).days] += 1
+        info = seed_learn.BY_CODE.get(r.point_code) or {}
+        subject = info.get("subject") or "其他"
+        subject_count[subject] = subject_count.get(subject, 0) + 1
+
+    completed_total = db.query(func.count(LearnProgress.id)).filter(
+        LearnProgress.user_id == user.id,
+        LearnProgress.completed_at.is_not(None)).scalar() or 0
+
+    wrong_rows = db.query(WrongAnswer).filter(
+        WrongAnswer.user_id == user.id,
+        WrongAnswer.created_at >= start_dt).all()
+    wrong_total = db.query(func.count(WrongAnswer.id)).filter(
+        WrongAnswer.user_id == user.id).scalar() or 0
+    wrong_open = db.query(func.count(WrongAnswer.id)).filter(
+        WrongAnswer.user_id == user.id,
+        WrongAnswer.resolved.is_(False)).scalar() or 0
+
+    focus_min = db.query(func.coalesce(func.sum(FocusSession.minutes), 0)).filter(
+        FocusSession.user_id == user.id,
+        FocusSession.started_at >= start_dt).scalar() or 0
+    focus_days = db.query(func.count(func.distinct(func.date(FocusSession.started_at)))).filter(
+        FocusSession.user_id == user.id,
+        FocusSession.started_at >= start_dt).scalar() or 0
+
+    ch = db.query(Character).filter(Character.user_id == user.id).first()
+
+    # 连续学习天数：完成课程或专注任一件都算「这天有学」
+    day_set = {str(r.completed_at.date()) for r in rows if r.completed_at}
+    focus_day_rows = db.query(func.date(FocusSession.started_at)).filter(
+        FocusSession.user_id == user.id).group_by(func.date(FocusSession.started_at)).all()
+    day_set |= {str(r[0]) for r in focus_day_rows}
+    streak, cursor = 0, today
+    if str(cursor) not in day_set:
+        cursor = today - timedelta(days=1)
+    while str(cursor) in day_set:
+        streak += 1
+        cursor -= timedelta(days=1)
+
+    return {
+        "start": str(start),
+        "end": str(start + timedelta(days=6)),
+        "days": [{"date": str(start + timedelta(days=i)), "label": WEEK[i], "count": per_day[i]}
+                 for i in range(7)],
+        "completed": len(rows),
+        "completed_total": int(completed_total),
+        "total_lessons": len(seed_learn.BY_CODE),
+        "subjects": [{"subject": s, "count": c}
+                     for s, c in sorted(subject_count.items(), key=lambda kv: -kv[1])],
+        "wrong_new": len(wrong_rows),
+        "wrong_total": int(wrong_total),
+        "wrong_open": int(wrong_open),
+        "focus_minutes": int(focus_min),
+        "focus_days": int(focus_days),
+        "streak": streak,
+        "level": ch.level if ch else 1,
+        "title": growth_svc.title_of(ch.level) if ch else "拾荒者",
+        "weekly_exp": ch.weekly_exp if ch else 0,
+        "total_exp": ch.total_exp if ch else 0,
+    }

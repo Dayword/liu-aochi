@@ -7,6 +7,8 @@ import { useAuth } from '../store/auth'
 import type { Profile } from '../types'
 import HomePoster from '../components/HomePoster'
 import { ALL_ENTRIES } from '../nav'
+import { quoteOfDay, SECRET_QUOTES } from '../lib/quotes'
+import { useSettings } from '../theme/ThemeProvider'
 
 /**
  * 首页 = 入口大厅。
@@ -38,6 +40,7 @@ const MORE_ENTRIES = ALL_ENTRIES.filter(
 )
 
 export default function Home() {
+  const { settings } = useSettings()
   const { character, user } = useAuth()
   const navigate = useNavigate()
   const [learn, setLearn] = useState<{ completed: number; total: number; pct: number } | null>(null)
@@ -72,6 +75,12 @@ export default function Home() {
         exp={character?.exp ?? 0}
         expNext={character?.exp_to_next ?? 100}
       />
+      </div>
+
+      {/* 每日一句：按日期取，同一天刷新不变 */}
+      <div data-boot-wave="block" className="px-1 flex items-start gap-1.5">
+        <span className="text-[13px] leading-none text-indigo-400 mt-0.5">“</span>
+        <p className="text-[11.5px] text-slate-500 leading-relaxed">{settings.easter && Math.random() > 0.7 ? SECRET_QUOTES[(Math.random() * SECRET_QUOTES.length) | 0] : quoteOfDay()}</p>
       </div>
 
       {/* ===== 两个主入口（并排，比下面四个大） ===== */}

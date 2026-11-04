@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { App, Button, Progress } from 'antd'
 import { motion } from 'framer-motion'
 import { api } from '../api/client'
+import { recordAnswer } from '../lib/activity'
+import { emit } from '../lib/bus'
 import FavStar from '../components/FavStar'
 import { useFavorites } from '../store/favorites'
 import type { GameCard, GameStart, GameSubmitResult } from '../types'
@@ -458,6 +460,10 @@ export default function Game() {
         elapsed,
       })
       setResult(r)
+      // 一局里答了 total 题、对了 correct 题：只把整局当作「一次作答」记，
+      // 否则一次游戏会把最近 10 题的环形缓冲全刷成游戏数据，机器人表情就不准了。
+      if (r.total > 0) recordAnswer(r.correct / r.total >= 0.6)
+      if (r.stars >= 2) emit({ type: 'clear' })
       setPhase('done')
     } catch (e) {
       message.error((e as Error).message)

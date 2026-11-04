@@ -426,6 +426,19 @@ export default function Profile() {
         </button>
       </div>
 
+      {/* 本周学习报告：一页图，可存成图片分享 */}
+      <button
+        onClick={() => navigate('/report')}
+        className="game-panel w-full flex items-center gap-2 p-3 text-left active:bg-slate-50"
+      >
+        <span className="text-[18px] leading-none">📊</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[12.5px] font-medium text-slate-700">本周学习报告</div>
+          <div className="text-[10px] text-slate-400">这周学了几课、专注多久、错题还剩多少</div>
+        </div>
+        <RightOutlined className="text-[9px] text-slate-300" />
+      </button>
+
       {/* ===== 资料编辑弹窗：只让改昵称和身份 ===== */}
       <Modal
         open={editOpen}

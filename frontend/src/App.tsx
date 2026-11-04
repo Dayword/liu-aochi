@@ -20,6 +20,7 @@ import WrongBook from './pages/WrongBook'
 import Favorites from './pages/Favorites'
 import InterviewBank from './pages/InterviewBank'
 import Settings from './pages/Settings'
+import WeeklyReport from './pages/WeeklyReport'
 import BootGate from './boot/BootGate'
 
 function FullScreenSpin() {
@@ -78,6 +79,8 @@ function Routing() {
           <Route path="/profile" element={<Profile />} />
           {/* 设置：主题 / 编辑器 / 账号 / 无障碍，入口在侧栏与抽屉底部 */}
           <Route path="/settings" element={<Settings />} />
+          {/* 本周学习报告：个人中心与机器人快捷菜单可进，不占导航位 */}
+          <Route path="/report" element={<WeeklyReport />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/wrong" element={<WrongBook />} />
           <Route path="/favorites" element={<Favorites />} />

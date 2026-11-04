@@ -66,7 +66,8 @@ async def stream(body: ChatIn, request: Request, db: Session = Depends(get_db),
         db.commit()
 
     return StreamingResponse(
-        _chat_events(user.id, session.id, body.mentor, history, body.message),
+        _chat_events(user.id, session.id, body.mentor, history, body.message,
+                     body.persona),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive",
                  "X-Accel-Buffering": "no"},
@@ -105,7 +106,7 @@ async def _refresh_summary(session_id: int, fresh: list[dict]) -> None:
 
 
 async def _chat_events(user_id: int, session_id: int, mentor: str,
-                       history: list[dict], message: str):
+                       history: list[dict], message: str, persona: str = "warm"):
     """流式生成器。这里单独开一个 Session：StreamingResponse 的生成器在依赖清理之后才跑。"""
     from ..ai import client as ai
 
@@ -134,7 +135,7 @@ async def _chat_events(user_id: int, session_id: int, mentor: str,
             messages = ai.build_chat_messages(
                 db, mentor, message, kept,
                 avoid=ai.recent_quiz_stems(db, user_id, 12), summary=long_summary,
-                gap=bool(dropped) and not long_summary)
+                gap=bool(dropped) and not long_summary, persona=persona)
             async for kind, text in ai.stream_llm(messages):
                 if kind == "reasoning":
                     yield _sse({"type": "reasoning", "text": text})
