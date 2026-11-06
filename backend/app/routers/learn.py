@@ -81,9 +81,12 @@ def _bili(code: str) -> dict | None:
         # autoplay=1：iframe 是我们点完封面才挂的，用户手势还在，能直接开播。
         # 写 0 的话播放器只画出 00:00 的静止首帧、播放键是底部一个不起眼的小三角，
         # 用户点完封面以为坏了（2026-11-06 用户报「打不开」实测就是这个）。
+        # qn=80 主动要 1080P：没有 1080P 的稿子，B站 会自己给次高档（720P/480P），
+        # 正好是「优先高清、不支持就降级」。没登录时服务器只肯给 360P，
+        # 这时 qn 被忽略、照样播，不会报错。
         "embed": ("https://player.bilibili.com/player.html"
                   f"?bvid={bv}&page={page}&autoplay=1&danmaku=0"
-                  "&high_quality=1&isOutside=true"),
+                  "&high_quality=1&qn=80&isOutside=true"),
         "url": f"https://www.bilibili.com/video/{bv}?p={page}",
     }
 
