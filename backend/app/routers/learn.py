@@ -78,8 +78,11 @@ def _bili(code: str) -> dict | None:
         "up": series.get("up", ""),
         "series": series.get("title", ""),
         # isOutside=true 必带：不带的话外站嵌入会提示「该视频无法播放」
+        # autoplay=1：iframe 是我们点完封面才挂的，用户手势还在，能直接开播。
+        # 写 0 的话播放器只画出 00:00 的静止首帧、播放键是底部一个不起眼的小三角，
+        # 用户点完封面以为坏了（2026-11-06 用户报「打不开」实测就是这个）。
         "embed": ("https://player.bilibili.com/player.html"
-                  f"?bvid={bv}&page={page}&autoplay=0&danmaku=0"
+                  f"?bvid={bv}&page={page}&autoplay=1&danmaku=0"
                   "&high_quality=1&isOutside=true"),
         "url": f"https://www.bilibili.com/video/{bv}?p={page}",
     }

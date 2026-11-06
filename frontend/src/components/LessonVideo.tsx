@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { BiliSeries, BiliVideo } from '../types'
 
 /**
@@ -7,18 +7,19 @@ import type { BiliSeries, BiliVideo } from '../types'
  * 几个必须知道的约束（2026-11-06 实测）：
  * 1. **必须带 `isOutside=true`**：不带的话外站嵌入会提示「该视频无法播放」。
  *    链接由后端拼（见 learn.py 的 _bili），前端不重复拼参数。
- * 2. **点击后才挂 iframe**：B站 播放器一次要拉 64 个请求 / 212 KB，
- *    直接渲染会把课程页首屏拖慢；用户点了才加载，顺带绕开移动端自动播放限制。
+ * 2. **点击后才挂 iframe**：B站 播放器一次要拉 60 多个请求 / 200 KB，
+ *    直接渲染会把课程页首屏拖慢。点了才加载，同时也拿到了用户手势，
+ *    所以 embed 里写 `autoplay=1` 能直接开播（写 0 只会停在静止首帧，
+ *    播放键是底部一个不起眼的小三角 —— 用户以为打不开，2026-11-06 踩过）。
  * 3. **画质锁 480P**：未登录只能到 480P，播放器右侧有个删不掉的
  *    「进入哔哩哔哩，观看更高清」浮层 —— 这是 B站 的引流，改不了。
  * 4. **视频会下架**：UP 删稿或改分P 后 iframe 里就是一片黑，跨域又读不到它的
- *    DOM，检测不出来。所以「在 B 站打开」始终可见，加载超过 8 秒再补一句提示。
+ *    DOM，检测不出来，也没法用计时器猜（能播的时候也会超 8 秒）。
+ *    所以只给常驻的「在 B 站 打开」，不自动弹「加载慢」那种误报。
  *
  * 旧的「自制动图 + TTS 旁白」版本已下线（2026-11-06 用户要求全换真视频）。
  * 需要回滚看 git：`git show 8f6c4b4:frontend/src/components/LessonVideo.tsx`。
  */
-
-const SLOW_MS = 8000
 
 export default function LessonVideo({
   bili,
@@ -31,27 +32,11 @@ export default function LessonVideo({
 }) {
   const [open, setOpen] = useState(true)
   const [playing, setPlaying] = useState(false)
-  const [slow, setSlow] = useState(false)
-  const timer = useRef<number | null>(null)
 
   // 换课要复位：否则上一课的「已播放」状态会让新一课直接挂 iframe
   useEffect(() => {
     setPlaying(false)
-    setSlow(false)
-    if (timer.current) window.clearTimeout(timer.current)
   }, [bili?.bvid, bili?.page])
-
-  useEffect(() => {
-    if (!playing) return undefined
-    timer.current = window.setTimeout(() => setSlow(true), SLOW_MS)
-    return () => {
-      if (timer.current) window.clearTimeout(timer.current)
-    }
-  }, [playing])
-
-  useEffect(() => () => {
-    if (timer.current) window.clearTimeout(timer.current)
-  }, [])
 
   // 没有精确映射的课：给「暂无」+ 该科目的推荐系列，不拿不相干的视频凑数。
   // 连推荐系列都没有（RAG / 后端 / 多模态 / AI 工程这四科）就整块不渲染，
@@ -152,11 +137,9 @@ export default function LessonVideo({
             <span className="min-w-0 flex-1 truncate text-[11.5px] text-slate-500">
               第 {bili.page} 讲 · {bili.part}
             </span>
-            {slow && (
-              <span className="shrink-0 text-[11px] text-amber-600">
-                加载慢？网络到 B 站 可能不通
-              </span>
-            )}
+            <span className="shrink-0 text-[11px] text-slate-400">
+              画面出不来就点右边
+            </span>
             <a
               href={bili.url}
               target="_blank"
