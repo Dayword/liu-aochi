@@ -24,6 +24,7 @@ from ..schemas import (LearnCheckIn, LearnCheckOut, LearnHintIn, LearnHintOut,
                        QBankItem, QBankLesson, QBankModule, QBankSubject)
 from ..security import get_current_user
 from ..seed.learn import BY_CODE, BY_SUBJECT, SUBJECTS, next_code
+from ..seed.learn_video_bili import SERIES as BILI_SERIES, VIDEO as BILI_VIDEO
 from ..seed.learn_mindmap import MINDMAPS
 from ..seed.learn_roadmap import ROADMAP
 from ..seed.learn_sketch import sketch_of
@@ -57,6 +58,45 @@ def _sketch(code: str) -> dict | None:
 def _oneliner(code: str) -> str:
     """本课开头的一句话；没铺到的课返回空串，前端退回 summary。"""
     return (sketch_of(code) or {}).get("oneliner", "") or ""
+
+
+def _bili(code: str) -> dict | None:
+    """本课对应的 B站 视频（分 P 级）；没映射到就返回 None。
+
+    只在后端拼好「系列 + 分P + 直链」，前端不重复拼 URL —— 万一以后要换
+    player.bilibili.com 的参数（比如加 &t= 时间戳），只改这一处。
+    """
+    hit = BILI_VIDEO.get(code)
+    if not hit:
+        return None
+    bv, page, part = hit
+    series = BILI_SERIES.get(bv) or {}
+    return {
+        "bvid": bv,
+        "page": page,
+        "part": part,
+        "up": series.get("up", ""),
+        "series": series.get("title", ""),
+        # isOutside=true 必带：不带的话外站嵌入会提示「该视频无法播放」
+        "embed": ("https://player.bilibili.com/player.html"
+                  f"?bvid={bv}&page={page}&autoplay=0&danmaku=0"
+                  "&high_quality=1&isOutside=true"),
+        "url": f"https://www.bilibili.com/video/{bv}?p={page}",
+    }
+
+
+def _bili_fallback(subject: str) -> dict | None:
+    """这一科没有逐课映射时的兜底：给该科目的推荐系列（整系列链接）。
+
+    RAG / 后端服务 / 多模态 / AI 工程质量这四科是自编内容，B站 上没有对应
+    讲解，前端只能给「系列入口」，不给假视频。
+    """
+    for bv, info in BILI_SERIES.items():
+        if info.get("subject") == subject:
+            return {"bvid": bv, "up": info.get("up", ""),
+                    "series": info.get("title", ""),
+                    "url": f"https://www.bilibili.com/video/{bv}"}
+    return None
 
 router = APIRouter(prefix="/api/learn", tags=["learn"])
 
@@ -515,7 +555,12 @@ def point_detail(code: str, db: Session = Depends(get_db),
         next_code=_next_unlocked(db, user, point["code"]),
         oneliner=_oneliner(point["code"]),
         sketch=_sketch(point["code"]),
-        video=VIDEOS.get(point["code"]),
+        bili=_bili(point["code"]),
+        bili_series=_bili_fallback(point["subject"]),
+        # 自制动图分镜（video）2026-11-06 起不再返回：视频区已改成播 B站 原片。
+        # 数据还在（lesson_videos.json + learn_video.py + schema 字段），
+        # 要回滚就把下面这行解开、同时恢复 LessonVideo 的旧组件。
+        # video=VIDEOS.get(point["code"]),
         project=point.get("project"),
     )
 

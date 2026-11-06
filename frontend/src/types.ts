@@ -394,6 +394,10 @@ export interface LearnPointDetail extends LearnPointBrief {
   sketch?: LessonSketch | null
   /** 讲解视频分镜脚本；后端构建期生成，缺失时前端不显示视频入口 */
   video?: LearnVideo | null
+  /** 本课配套的 B站 视频（精确到分P）；没映射到就是 null，视频区显示「暂无」 */
+  bili?: BiliVideo | null
+  /** 这一科没有逐课映射时的推荐系列（整系列链接） */
+  bili_series?: BiliSeries | null
   /** 「项目实地」：本课知识点在鸭先知 RAG 项目里的落点；缺失时整块不渲染 */
   project?: LearnProjectRef | null
 }
@@ -426,6 +430,28 @@ export interface LearnVideo {
   code: string
   scenes: LearnVideoScene[]
   duration_ms: number
+}
+
+/** 一节课配套的 B站 视频。embed 是外链播放器地址，url 是原视频地址。 */
+export interface BiliVideo {
+  bvid: string
+  page: number
+  /** 分P标题，例如「08. 基础-SQL-DDL-数据类型及案例」 */
+  part: string
+  /** UP 主，例如「黑马程序员」 */
+  up: string
+  /** 所属系列名 */
+  series: string
+  embed: string
+  url: string
+}
+
+/** 科目级推荐系列（这一科没有逐课映射时的兜底） */
+export interface BiliSeries {
+  bvid: string
+  up: string
+  series: string
+  url: string
 }
 
 export interface LearnCheckResult {

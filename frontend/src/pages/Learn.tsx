@@ -477,9 +477,13 @@ export default function Learn() {
             />
           )}
 
-          {/* 讲解视频：分镜脚本由后端构建期生成，缺脚本时组件自己返回 null */}
-          {detail.video && detail.video.scenes.length > 0 && (
-            <LessonVideo video={detail.video} code={detail.code} />
+          {/* 视频讲解：嵌 B站 原片（分P 级）；没映射到的课退成推荐系列，两者都没有就不渲染 */}
+          {(detail.bili || detail.bili_series) && (
+            <LessonVideo
+              bili={detail.bili}
+              series={detail.bili_series}
+              title={detail.title}
+            />
           )}
 
           <Section icon="📖" title="定义">

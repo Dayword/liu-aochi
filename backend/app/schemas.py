@@ -481,6 +481,11 @@ class LearnPointDetail(LearnPointBrief):
     # 讲解视频的分镜脚本；由 build_lesson_videos.py 在构建期生成，
     # 缺失（比如还没跑过构建脚本）时为 None，前端就不显示视频入口。
     video: Optional[dict] = None
+    # 本课配套的 B站 视频（精确到分P）。2026-11-06 起视频区改播 B站 原片，
+    # 上面的 video（自制动图分镜）保留但不再渲染，先留一版好回滚。
+    bili: Optional[dict] = None
+    # 这一科没有逐课映射时的推荐系列（整系列链接）；也没有就 None。
+    bili_series: Optional[dict] = None
     # 「项目实地」：这个知识点在鸭先知 RAG 项目里的真实落点。
     # 结构见 app/seed/learn_project_base.py；kind=used/absent，缺数据时前端不显示。
     project: Optional[dict] = None

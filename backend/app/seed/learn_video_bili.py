@@ -1,0 +1,108 @@
+"""每节课配套的 B站 视频（精确到分 P）。
+
+数据来源：B站 官方接口 api.bilibili.com/x/player/pagelist 拉到的分P标题，
+逐条人工核对后写死在这里。**不要用关键词自动匹配来生成** —— 试过，
+王道的分P带「咸鱼版」后缀、黑马的分P带「基础-SQL-DDL-」前缀，
+自动匹配 10 条里能错 7 条，错视频比没有视频更坑学生。
+
+没有条目的课 = B站 上确实找不到对应讲解（RAG 检索工程、后端服务工程、
+多模态部署、AI 工程质量这些自编内容），前端显示「暂无配套视频」+ 推荐系列，
+不拿不相干的视频凑数。
+
+⚠️ 视频可能被 UP 主删除或改分P，前端做了加载失败兜底（转成「去 B站 看」）。
+"""
+
+SERIES = {
+    "BV1R7411F7JV": {"up": "千锋python", "title": "700 集 Python 零基础教程", "subject": "Python"},
+    "BV1ex411x7Em": {"up": "黑马程序员", "title": "600 集 Python 从入门到精通", "subject": "Python"},
+    "BV1U2WmzfEqp": {"up": "黑马程序员", "title": "大模型 Python 语言进阶", "subject": "Python"},
+    "BV1Kr4y1i7ru": {"up": "黑马程序员", "title": "MySQL 入门到精通（195 集）", "subject": "MySQL"},
+    "BV1cr4y1671t": {"up": "黑马程序员", "title": "Redis 入门到实战（175 集）", "subject": "Redis"},
+    "BV19E411D78Q": {"up": "王道计算机教育", "title": "王道考研 计算机网络（94 集）", "subject": "计算机网络"},
+    "BV1YE411D7nH": {"up": "王道计算机教育", "title": "王道考研 操作系统（86 集）", "subject": "操作系统"},
+    "BV1VC4y1x7uv": {"up": "八里桥好", "title": "北大 数据结构与算法 Python 版（87 集）", "subject": "数据结构"},
+    "BV1ReshzoEgG": {"up": "黑马程序员", "title": "Python 数据分析全套（144 集）", "subject": "数据分析与处理"},
+    "BV1GByoBfE73": {"up": "黑马程序员", "title": "AI 大模型 NLP 自然语言处理（198 集）", "subject": "Transformer"},
+}
+
+# code -> (BV, 分P)
+VIDEO = {
+    "py-var": ("BV1R7411F7JV", 6, "新：Python基础实战6-变量命名"),
+    "py-type": ("BV1R7411F7JV", 7, "新：Python基础实战7-数据类型和类型转换"),
+    "py-op": ("BV1R7411F7JV", 9, "新：Python基础实战9-算术运算符"),
+    "py-str": ("BV1R7411F7JV", 31, "新：Python基础实战31-字符串操作"),
+    "py-if": ("BV1R7411F7JV", 18, "新：Python基础实战18-条件语句"),
+    "py-while": ("BV1R7411F7JV", 21, "新：Python基础实战21-while循环结构"),
+    "py-for": ("BV1R7411F7JV", 25, "新：Python基础实战25-for循环"),
+    "py-list": ("BV1R7411F7JV", 39, "新：Python基础实战39-列表基础"),
+    "py-tuple-set": ("BV1R7411F7JV", 47, "新：Python基础实战47-元组讲解"),
+    "py-dict": ("BV1R7411F7JV", 50, "新：Python基础实战50-字典简介"),
+    "py-func": ("BV1R7411F7JV", 64, "新：Python基础实战64-函数定义"),
+    "py-lambda": ("BV1R7411F7JV", 87, "新：Python基础实战87-匿名函数"),
+    "py-scope": ("BV1R7411F7JV", 73, "新：Python基础实战73-可变和不可变类型"),
+    "py-comprehension": ("BV1R7411F7JV", 62, "新：Python基础实战62-列表推导式"),
+    "py-func-adv": ("BV1R7411F7JV", 68, "新：Python基础实战68-可变参数args"),
+    "py-decorator": ("BV1R7411F7JV", 82, "新：Python基础实战82-装饰器"),
+    "py-none": ("BV1ex411x7Em", 388, "028-封装案例-05-身份运算符-判断None应该使用 is"),
+    "py-iterate": ("BV1ex411x7Em", 297, "196-公共方法-01-内置函数长度、删除、最大、最小、比较"),
+    "py-exception": ("BV1ex411x7Em", 424, "064-异常-01-异常的概念以及抛出异常的原因"),
+    "py-class": ("BV1ex411x7Em", 361, "001-面向对象-01-基本概念"),
+    "py-module": ("BV1ex411x7Em", 432, "072-模块-01-基本概念和import导入复习"),
+    "py-file": ("BV1ex411x7Em", 447, "087-文件-文件概念以及文本文件和二进制文件的区别"),
+    "py-oop": ("BV1ex411x7Em", 391, "031-单继承-01-问题的抛出-单纯封装可能会出现重复的代码"),
+    "py-magic": ("BV1ex411x7Em", 375, "015-内置方法-01-del方法和对象的生命周期"),
+    "py-generator": ("BV1R7411F7JV", 218, "千锋Python教程：1.14.2-生成器-1"),
+    "py-regex": ("BV1R7411F7JV", 261, "千锋Python教程：1.18.6-正则表达式介绍"),
+    "py-concurrency": ("BV1R7411F7JV", 273, "千锋Python教程：1.19.8-多线程-1"),
+    "py-abc": ("BV1U2WmzfEqp", 32, "第二章-面向对象高级-08.抽象类案例_空调案例"),
+    "mysql-01": ("BV1Kr4y1i7ru", 8, "08. 基础-SQL-DDL-数据类型及案例"),
+    "mysql-02": ("BV1Kr4y1i7ru", 15, "15. 基础-SQL-DQL-基础查询"),
+    "mysql-03": ("BV1Kr4y1i7ru", 19, "19. 基础-SQL-DQL-排序查询"),
+    "mysql-04": ("BV1Kr4y1i7ru", 17, "17. 基础-SQL-DQL-聚合函数"),
+    "mysql-05": ("BV1Kr4y1i7ru", 39, "39. 基础-多表查询-内连接"),
+    "mysql-06": ("BV1Kr4y1i7ru", 43, "43. 基础-多表查询-子查询介绍"),
+    "mysql-07": ("BV1Kr4y1i7ru", 69, "12. 进阶-索引-结构-B+tree"),
+    "mysql-08": ("BV1Kr4y1i7ru", 78, "21. 进阶-索引-性能分析-explain"),
+    "mysql-09": ("BV1Kr4y1i7ru", 53, "53. 基础-事务-四大特性ACID"),
+    "mysql-10": ("BV1Kr4y1i7ru", 121, "64. 进阶-锁-介绍"),
+    "redis-01": ("BV1cr4y1671t", 4, "基础篇-03.初识Redis-认识Redis"),
+    "redis-02": ("BV1cr4y1671t", 10, "基础篇-09.Redis命令-String类型"),
+    "redis-03": ("BV1cr4y1671t", 12, "基础篇-11.Redis命令-Hash类型"),
+    "redis-04": ("BV1cr4y1671t", 14, "基础篇-13.Redis命令-Set类型"),
+    "redis-05": ("BV1cr4y1671t", 174, "原理篇-30.Redis内存回收-过期key处理"),
+    "redis-06": ("BV1cr4y1671t", 97, "高级篇-分布式缓存-02-Redis持久化-RDB演示"),
+    "redis-07": ("BV1cr4y1671t", 40, "实战篇-商户查询缓存-06.缓存穿透的解决思路"),
+    "redis-08": ("BV1cr4y1671t", 56, "实战篇-09.分布式锁-基本原理和不同实现方式对比"),
+    "net-01": ("BV19E411D78Q", 11, "1.2.3_1 OSI参考模型（咸鱼版）"),
+    "net-02": ("BV19E411D78Q", 79, "5.3.3_1 TCP连接管理（建立连接）（咸鱼版）"),
+    "net-03": ("BV19E411D78Q", 80, "5.3.3_2 TCP连接管理（释放连接）（咸鱼版）"),
+    "net-04": ("BV19E411D78Q", 81, "5.3.4+5_1 TCP可靠传输、流量控制（咸鱼版）"),
+    "net-05": ("BV19E411D78Q", 85, "5.3.6_1 TCP拥塞控制（慢开始和拥塞避免）（咸鱼版）"),
+    "net-06": ("BV19E411D78Q", 75, "5.2.1 UDP数据报（咸鱼版）"),
+    "net-07": ("BV19E411D78Q", 94, "6.5.2 超文本传输协议HTTP（咸鱼版）"),
+    "net-10": ("BV19E411D78Q", 88, "6.2_1 DNS概述（咸鱼版）"),
+    "os-01": ("BV1YE411D7nH", 17, "2.1.6_1 线程的概念与特点"),
+    "os-02": ("BV1YE411D7nH", 20, "2.2.1 调度的概念、层次"),
+    "os-03": ("BV1YE411D7nH", 15, "2.1.5_1 进程通信"),
+    "os-04": ("BV1YE411D7nH", 39, "2.4.1 死锁的概念"),
+    "os-05": ("BV1YE411D7nH", 49, "3.1.3_1 基本分页存储管理的概念"),
+    "os-06": ("BV1YE411D7nH", 55, "3.2.1 虚拟内存的基本概念"),
+    "os-07": ("BV1YE411D7nH", 71, "4.3_2_文件系统布局"),
+    "os-08": ("BV1YE411D7nH", 75, "5.1_3_IO控制方式"),
+    "ds-01": ("BV1VC4y1x7uv", 8, "[2.1.1]--201）什么是算法分析"),
+    "ds-02": ("BV1VC4y1x7uv", 14, "[3.1.1]--301）什么是线性结构"),
+    "ds-03": ("BV1VC4y1x7uv", 15, "[3.2.1]--302）栈抽象数据类型及Python实现"),
+    "ds-04": ("BV1VC4y1x7uv", 52, "[8.1.1]--508什么是散列"),
+    "ds-05": ("BV1VC4y1x7uv", 65, "[9.7.1]--607树的遍历"),
+    "ds-06": ("BV1VC4y1x7uv", 68, "[10.1.1]--610二叉查找树及操作"),
+    "ds-07": ("BV1VC4y1x7uv", 66, "[9.8.1]--608优先队列和二叉堆"),
+    "ds-08": ("BV1VC4y1x7uv", 47, "[7.3.1]--503冒泡和选择排序算法及分析"),
+    "ds-09": ("BV1VC4y1x7uv", 46, "[7.2.1]--502二分查找算法及分析"),
+    "ds-10": ("BV1VC4y1x7uv", 74, "[11.1.1]--701图的基本概念及相关术语"),
+    "da-01": ("BV1ReshzoEgG", 73, "Numpy入门-15.Numpy_属性介绍"),
+    "da-02": ("BV1ReshzoEgG", 83, "Pandas基础-09.Pandas_DataFrame和Series数据结构介绍"),
+    "da-04": ("BV1ReshzoEgG", 107, "Pandas进阶-12.Pandas进阶_缺失值处理"),
+    "da-05": ("BV1ReshzoEgG", 111, "Pandas进阶-16.Pandas进阶_分组聚合"),
+    "da-06": ("BV1ReshzoEgG", 109, "Pandas进阶-14.Pandas进阶_数据合并_concat()"),
+    "da-08": ("BV1ReshzoEgG", 119, "数据可视化-05.Matplotlib初体验_图表结构介绍"),
+}
