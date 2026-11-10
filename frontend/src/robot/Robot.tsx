@@ -62,8 +62,11 @@ export default function Robot() {
   const outfit = outfitOf(location.pathname)
   const size = SIZE[settings.robotSize]
 
-  // 练习页有编辑器和运行按钮，机器人会挡住右下角，直接不出场
-  const hidden = /^\/learn\/[^/]+\/practice$/.test(location.pathname)
+  // 练习页有编辑器和运行按钮，机器人会挡住右下角，直接不出场。
+  // 选择题教练页同理：右下角就是「换知识点」按钮，机器人正好压在上面。
+  const hidden =
+    /^\/learn\/[^/]+\/practice$/.test(location.pathname) ||
+    location.pathname.startsWith('/coach')
 
   /** 基础情绪：专注 > 久未学习 > 正确率 > 平静 */
   const baseMood: Mood = useMemo(() => {

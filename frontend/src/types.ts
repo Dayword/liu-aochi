@@ -642,3 +642,33 @@ export interface QBankSubject {
   lesson_covered: number
   lesson_total: number
 }
+
+// ---------- 选择题教练 ----------
+export interface CoachQuestion {
+  attempt_id: number
+  stem: string
+  options: string[]
+  code?: string | null
+  level: number
+  reverse: boolean
+  point: string
+  /** 代码题的答案是否经真实执行核对过 */
+  verified?: boolean | null
+  /** true = AI 出题失败，用的是本地题库 */
+  fallback: boolean
+}
+
+export interface CoachAnswer {
+  correct: boolean
+  answer_index: number
+  explanation: string
+  /** 反向题逐项对错，true=该说法正确 */
+  fact_check?: boolean[] | null
+  /** 选了错项时，那一项对应的误解 */
+  belief: string
+  level: number
+  level_changed: string
+  streak: number
+  total: number
+  right: number
+}

@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import Base, engine
-from .routers import (focus, auth, bug_hunter, chat, code, games, growth, interview,
-                      interview_guide, learn, levels, quests, user)
+from .routers import (focus, auth, bug_hunter, chat, coach, code, games, growth,
+                      interview, interview_guide, learn, levels, quests, user)
 
 
 def _warnings() -> list[str]:
@@ -74,6 +74,7 @@ app.include_router(growth.router)
 app.include_router(focus.router)
 app.include_router(games.router)
 app.include_router(learn.router)
+app.include_router(coach.router)
 
 
 @app.get("/api/health")

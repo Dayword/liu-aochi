@@ -741,3 +741,64 @@ class ProfileUpdateIn(BaseModel):
     nickname: Optional[str] = None
     student_id: Optional[str] = None
     identity: Optional[str] = None
+
+
+# ---------- 选择题教练 ----------
+class CoachStartIn(BaseModel):
+    topic: str = Field(min_length=1, max_length=60)
+
+    @field_validator("topic")
+    @classmethod
+    def _clean_topic(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("先说一个知识点，比如「Python 列表切片」")
+        return v
+
+
+class CoachStartOut(BaseModel):
+    session_id: int
+    topic: str
+    level: int
+
+
+class CoachQuestionOut(BaseModel):
+    """下发给前端的题。
+
+    ⚠️ 刻意**不含** answer_index / explanation / traps：
+    标准答案留在服务端，判分才回传。否则 F12 一看就把答案抄走了。
+    """
+
+    attempt_id: int
+    stem: str
+    options: list[str]
+    code: Optional[str] = None
+    level: int
+    reverse: bool = False
+    point: str = ""
+    # 代码题的答案是否经真实执行核对过（前端显示「已校验」小标）
+    verified: Optional[bool] = None
+    # True = AI 出题失败，用的是本地题库的题
+    fallback: bool = False
+
+
+class CoachAnswerIn(BaseModel):
+    attempt_id: int
+    chosen: int = Field(ge=0, le=3)
+
+
+class CoachAnswerOut(BaseModel):
+    correct: bool
+    answer_index: int
+    explanation: str
+    # 反向题：逐项对错，前端要显示 ✅/❌ 方便复盘
+    fact_check: Optional[list[bool]] = None
+    # 选中错误项时，那一项对应的误解（一句话）
+    belief: str = ""
+    # 调整后的难度，前端可显示「已升到中级」
+    level: int = 1
+    level_changed: str = ""      # "" | "up" | "down"
+    streak: int = 0
+    # 该 session 累计答对 / 总题数
+    total: int = 0
+    right: int = 0

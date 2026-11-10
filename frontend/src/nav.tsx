@@ -3,6 +3,7 @@ import {
   ApartmentOutlined,
   BookOutlined,
   BugOutlined,
+  BulbOutlined,
   CommentOutlined,
   CrownOutlined,
   EnvironmentOutlined,
@@ -107,6 +108,17 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: '陪练',
     items: [
+      {
+        to: '/coach',
+        label: '选择题教练',
+        icon: <BulbOutlined />,
+        emoji: '🎯',
+        desc: '说一个知识点 · 一题一题练到会',
+        tone: 'from-lime-500 to-emerald-500',
+        // 首页宫格正好 9 个（3 列排满），加进来会剩一个孤格。
+        // 教练走侧栏「陪练」组，不放宫格。
+        hideInGrid: true,
+      },
       {
         to: '/chat',
         label: 'AI 导师',

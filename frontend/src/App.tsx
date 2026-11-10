@@ -8,6 +8,7 @@ import LevelMap from './pages/LevelMap'
 import Quest from './pages/Quest'
 import Game from './pages/Game'
 import Learn from './pages/Learn'
+import Coach from './pages/Coach'
 import LearnPractice from './pages/LearnPractice'
 import MindMap from './pages/MindMap'
 import Sandbox from './pages/Sandbox'
@@ -60,6 +61,8 @@ function Routing() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/learn" element={<Learn />} />
+          {/* 选择题教练：底部一个输入框，输入知识点后连续出题 + 即时纠偏 */}
+          <Route path="/coach" element={<Coach />} />
           {/* 思维导图：每科一棵可缩放/折叠的知识点树，点节点看解释再进课程 */}
           <Route path="/mindmap" element={<MindMap />} />
           {/* 面试考题：科目 → 模块 → 课程 → 题，每题带标准答案 */}

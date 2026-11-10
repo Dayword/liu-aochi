@@ -37,12 +37,14 @@ def _http_client() -> httpx.AsyncClient:
 
 
 async def llm_chat(messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096,
-                   timeout: float | None = None) -> str:
+                   timeout: float | None = None,
+                   extra_body: dict | None = None) -> str:
     """调用 OpenAI 兼容 chat/completions 接口。
 
     max_tokens 需给足：推理模型（如 glm-5.3）的思考过程同样计入该预算，
     预留过小会导致 content 为空串。
     timeout 不传则用全局 AI_TIMEOUT；后台预取类调用（用户不在等）可以单独放宽。
+    extra_body 原样并进请求体，用于传模型私有参数（见下）。
     """
     if not ai_enabled():
         raise RuntimeError("AI 未配置")
@@ -50,6 +52,8 @@ async def llm_chat(messages: list[dict], temperature: float = 0.7, max_tokens: i
     headers = {"Authorization": f"Bearer {settings.AI_API_KEY}", "Content-Type": "application/json"}
     payload = {"model": settings.AI_MODEL, "messages": messages,
                "temperature": temperature, "max_tokens": max_tokens}
+    if extra_body:
+        payload.update(extra_body)
     resp = await _http_client().post(
         url, json=payload, headers=headers,
         timeout=timeout if timeout is not None else settings.AI_TIMEOUT)

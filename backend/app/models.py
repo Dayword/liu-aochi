@@ -371,3 +371,54 @@ class FocusSession(Base):
     minutes: Mapped[int] = mapped_column(Integer, default=0)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class CoachSession(Base):
+    """一次「选择题教练」练习。
+
+    用户只给一个知识点，后面就是连续出题。**不预设模块树**：
+    难度靠连对/答错动态调，避免重复靠把已考考点记在 asked 里传给模型。
+    """
+
+    __tablename__ = "coach_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    topic: Mapped[str] = mapped_column(String(80))
+    # 当前难度：1=基础 3=中级 4=进阶。答对连击升级，答错降级
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    # 已考过的考点，出题时传给模型避免重复
+    asked: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class CoachAttempt(Base):
+    """一道题 + 用户的作答。
+
+    ⚠️ 标准答案存这里，**不下发给前端** —— 前端只拿题干和选项，
+    否则 F12 看一眼就把答案抄走了，整个判分失去意义。
+    """
+
+    __tablename__ = "coach_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("coach_sessions.id"), index=True)
+    point: Mapped[str] = mapped_column(String(40), default="")
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    reverse: Mapped[bool] = mapped_column(Boolean, default=False)
+    stem: Mapped[str] = mapped_column(Text)
+    options: Mapped[list] = mapped_column(JSON, default=list)
+    code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    answer_index: Mapped[int] = mapped_column(Integer, default=0)
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    # [{"index":1,"belief":"选它的人以为……"}]
+    traps: Mapped[list] = mapped_column(JSON, default=list)
+    # 反向题才有：逐项对错
+    fact_check: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # 代码题的答案是否经过真实执行核对
+    verified: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+    chosen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # 选中错误项时，那一项对应的误解（trap.belief），用于错题清单
+    belief: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
