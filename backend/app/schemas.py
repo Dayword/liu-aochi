@@ -760,6 +760,10 @@ class CoachStartOut(BaseModel):
     session_id: int
     topic: str
     level: int
+    # 范围规划：前端先把这段展示出来，再出第一题（不要一上来就给题）
+    need_split: bool = False
+    note: str = ""
+    points: list[str] = []
 
 
 class CoachQuestionOut(BaseModel):
@@ -780,6 +784,11 @@ class CoachQuestionOut(BaseModel):
     verified: Optional[bool] = None
     # True = AI 出题失败，用的是本地题库的题
     fallback: bool = False
+    # ---- 闯关进度 ----
+    point_index: int = 0
+    points_total: int = 1
+    point_name: str = ""
+    q_in_point: int = 1
 
 
 class CoachAnswerIn(BaseModel):
@@ -795,10 +804,18 @@ class CoachAnswerOut(BaseModel):
     fact_check: Optional[list[bool]] = None
     # 选中错误项时，那一项对应的误解（一句话）
     belief: str = ""
-    # 调整后的难度，前端可显示「已升到中级」
+    # 本题难度（由知识点内题序决定，不随答题结果升降）
     level: int = 1
-    level_changed: str = ""      # "" | "up" | "down"
+    level_changed: str = ""      # 恒为空，保留字段兼容旧前端
+    # 当前知识点内连续答对数，满 3 过关；答错清零
     streak: int = 0
     # 该 session 累计答对 / 总题数
     total: int = 0
     right: int = 0
+    # ---- 闯关进度 ----
+    point_index: int = 0
+    points_total: int = 1
+    point_name: str = ""
+    passed: bool = False         # 本次刚好过关，进入下一个知识点
+    finished: bool = False       # 全部知识点过关，前端停止出题
+    summary: Optional[dict] = None

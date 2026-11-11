@@ -374,20 +374,32 @@ class FocusSession(Base):
 
 
 class CoachSession(Base):
-    """一次「选择题教练」练习。
+    """一轮「选择题教练」练习：先规划知识点，再逐点闯关。
 
-    用户只给一个知识点，后面就是连续出题。**不预设模块树**：
-    难度靠连对/答错动态调，避免重复靠把已考考点记在 asked 里传给模型。
+    用户给一个大范围（如「Python」）时，先由 AI 拆成由易到难的若干知识点，
+    每个知识点连对 3 题过关，全部过关即结束。范围够小就只有一个知识点。
     """
 
     __tablename__ = "coach_sessions"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     topic: Mapped[str] = mapped_column(String(80))
-    # 当前难度：1=基础 3=中级 4=进阶。答对连击升级，答错降级
+    # level 保留兼容：现在难度由「知识点内第几题」决定，不再靠连对/答错动态调
     level: Mapped[int] = mapped_column(Integer, default=1)
     # 已考过的考点，出题时传给模型避免重复
     asked: Mapped[list] = mapped_column(JSON, default=list)
+    # ---- 知识点规划（2026-11-11）----
+    # 由易到难的知识点名列表；至少 1 个（不拆时就是原 topic）
+    plan: Mapped[list] = mapped_column(JSON, default=list)
+    # 给用户看的那句「范围能不能再分」的说明
+    plan_note: Mapped[str] = mapped_column(Text, default="")
+    need_split: Mapped[bool] = mapped_column(Boolean, default=False)
+    point_index: Mapped[int] = mapped_column(Integer, default=0)
+    # 当前知识点已出过几题（决定本题难度：第 1 题基础 → 第 3 题起进阶）
+    q_in_point: Mapped[int] = mapped_column(Integer, default=0)
+    # 当前知识点内连续答对几题，满 3 过关；答错清零
+    streak_in_point: Mapped[int] = mapped_column(Integer, default=0)
+    finished: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
@@ -403,6 +415,8 @@ class CoachAttempt(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(ForeignKey("coach_sessions.id"), index=True)
     point: Mapped[str] = mapped_column(String(40), default="")
+    # 这题属于规划里的第几个知识点，用于按知识点统计与生成总结
+    point_index: Mapped[int] = mapped_column(Integer, default=0)
     level: Mapped[int] = mapped_column(Integer, default=1)
     reverse: Mapped[bool] = mapped_column(Boolean, default=False)
     stem: Mapped[str] = mapped_column(Text)

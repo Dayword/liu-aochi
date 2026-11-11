@@ -653,9 +653,38 @@ export interface CoachQuestion {
   reverse: boolean
   point: string
   /** 代码题的答案是否经真实执行核对过 */
-  verified?: boolean | null
-  /** true = AI 出题失败，用的是本地题库 */
-  fallback: boolean
+    verified?: boolean | null
+    /** true = AI 出题失败，用的是本地题库 */
+    fallback: boolean
+    /** 当前在练第几个知识点（0 起） */
+    point_index: number
+    points_total: number
+    point_name: string
+    /** 本知识点内第几题，决定难度 */
+    q_in_point: number
+}
+
+/** /api/coach/start 返回的范围规划，前端先展示它再出第一题 */
+export interface CoachPlan {
+    session_id: number
+    topic: string
+    need_split: boolean
+    note: string
+    points: string[]
+}
+
+export interface CoachSummaryPoint {
+    name: string
+    total: number
+    right: number
+}
+
+export interface CoachSummary {
+    topic: string
+    points: CoachSummaryPoint[]
+    total: number
+    right: number
+    wrong: number
 }
 
 export interface CoachAnswer {
@@ -668,7 +697,17 @@ export interface CoachAnswer {
   belief: string
   level: number
   level_changed: string
-  streak: number
-  total: number
-  right: number
+    /** 当前知识点内连对数，满 3 过关；答错清零 */
+    streak: number
+    total: number
+    right: number
+    /** ---- 闯关进度 ---- */
+    point_index: number
+    points_total: number
+    point_name: string
+    /** 本次答对后刚好过关，进入下一个知识点 */
+    passed: boolean
+    /** 全部知识点过关，前端停止出题 */
+    finished: boolean
+    summary: CoachSummary | null
 }

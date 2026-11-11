@@ -1,25 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App, Button, Input, Spin, Tag } from 'antd'
-import { ArrowLeftOutlined, DownOutlined, ReloadOutlined, SendOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, DownOutlined, ReloadOutlined, SendOutlined, UpOutlined } from '@ant-design/icons'
 import { api, ApiError } from '../api/client'
-import type { CoachAnswer, CoachQuestion } from '../types'
+import type { CoachAnswer, CoachPlan, CoachQuestion, CoachSummary } from '../types'
 
 /**
  * 选择题教练 —— 一页到底的消息流。
  *
- * 交互只有一条主线：**底部一个输入框 → 输入知识点 → 一题一题往下接**。
- * 没有「下一题」按钮：判完分就把新题追加到流末尾，答过的题和解析留在原地，
- * 往上滚能回看整场练习。换知识点也只是往下接一条分隔 + 新题，不清屏。
+ * 一轮练习分两段，**不直接给题目**：
+ * 1. 输入知识点后先让后端判断「这个范围还能不能再分」。范围大就拆成由易到难
+ *    的若干知识点，规划卡片先落到流里；范围小就说明不用拆。
+ * 2. 展示完才出第一题。每个知识点内题目由易到难，连对 3 题过关，
+ *    最后一个过关就插总结卡片并停止出题。
  *
- * 几个刻意的设计：
- * - 底部输入框常驻：随时能换知识点，不用退出去重进。
- * - 答错的反馈先给「你以为」，再给解析。顺序反了就没人在乎前半句。
- * - 反向题（问「哪个错误」）答完后逐项标 ✅/❌，否则学生记住的是「我选错了」，
- *   而不是「哪三句是对的」。
- * - 出题要 3~5 秒，这期间在流末尾给「正在出下一题…」，否则会被当成卡死。
- * - 自动追加只在用户本来就贴着底部时拉滚动条；正在回看历史时只给一个
- *   「新题 ↓」浮标，不把人硬拽回来。
+ * 答过的题和解析留在原地，往上滚能回看整场练习；换知识点只是往下接新的一段，
+ * 不清屏。自动跟随只在用户本来就贴着底部时生效，回看历史时只给「新题 ↓」浮标。
  */
 
 const LEVEL_TAG: Record<number, { t: string; c: string }> = {
@@ -28,7 +24,15 @@ const LEVEL_TAG: Record<number, { t: string; c: string }> = {
   4: { t: '进阶', c: 'purple' },
 }
 
-const PRESETS = ['Python 列表切片', 'Python 闭包', 'MySQL 索引', 'HTTP 状态码']
+const PRESETS = ['Python', 'Python 列表切片', 'MySQL 索引', 'HTTP 状态码']
+const PASS_STREAK = 3
+
+/** 同一毫秒内可能连插两条（过关 + 总结），给个不会撞的 key */
+let _seq = 0
+function s_key(): string {
+  _seq += 1
+  return `${Date.now()}-${_seq}`
+}
 
 type Card = {
   sid: number
@@ -37,9 +41,147 @@ type Card = {
   res: CoachAnswer | null
 }
 
+type Progress = { pointIndex: number; streak: number; finished: boolean }
+
+type Head = Progress & { pointsTotal: number; pointName: string }
+
 type Entry =
   | { kind: 'divider'; key: string; text: string }
+  | { kind: 'plan'; key: string; plan: CoachPlan; progress: Progress }
+  | { kind: 'passed'; key: string; from: string; to: string }
+  | { kind: 'summary'; key: string; data: CoachSummary }
   | { kind: 'card'; key: number; num: number; card: Card }
+
+function PlanCard({ plan, progress }: { plan: CoachPlan; progress: Progress }) {
+  const pts = plan.points.length ? plan.points : [plan.topic]
+  // 抽屉：open=展开 / folding=收起动画中 / folded=收成右上角小图标 / opening=展开动画中
+  const [phase, setPhase] = useState<'open' | 'folding' | 'folded' | 'opening'>('open')
+  const doneCount = progress.finished ? pts.length : progress.pointIndex
+
+  // 收起态：一个挂在流右侧的小图标条（用户定的交互：点一下收回去，再点展开）
+  if (phase === 'folded') {
+    return (
+      <div className="mb-4 flex justify-end">
+        <button
+          data-coach-plan-chip="1"
+          aria-expanded={false}
+          onClick={() => setPhase('opening')}
+          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200
+                     bg-indigo-50 px-3 py-1.5 text-[12px] text-indigo-700 shadow-sm
+                     transition-colors hover:border-indigo-300 hover:bg-indigo-100"
+        >
+          <span>
+            知识点规划 · {pts.length} 个点{doneCount > 0 ? ` · 已过 ${doneCount}` : ''}
+          </span>
+          <DownOutlined className="text-[10px]" />
+        </button>
+      </div>
+    )
+  }
+
+  const anim = phase === 'folding' ? 'ca-drawer-fold'
+    : phase === 'opening' ? 'ca-drawer-unfold' : ''
+  return (
+    <div
+      data-coach-plan="1"
+      data-coach-points={pts.length}
+      className={`mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 shadow-sm ${anim}`}
+      style={{ transformOrigin: 'top right' }}
+      onAnimationEnd={() => {
+        if (phase === 'folding') setPhase('folded')
+        else if (phase === 'opening') setPhase('open')
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[12px] font-medium text-indigo-700">范围还能再分吗？</span>
+        <Tag color={plan.need_split ? 'blue' : 'default'}>
+          {plan.need_split ? `拆成 ${pts.length} 个知识点` : '不用再分'}
+        </Tag>
+        {/* 右上角缩放按钮：点一下收成右上角小图标，再点按 0.3s 由慢到快展开 */}
+        <button
+          data-coach-plan-toggle="1"
+          aria-expanded={true}
+          aria-label="收起知识点规划"
+          title="收起"
+          onClick={() => setPhase('folding')}
+          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md
+                     border border-indigo-200 bg-white/70 text-[11px] text-indigo-500
+                     transition-colors hover:border-indigo-300 hover:text-indigo-700"
+        >
+          <UpOutlined />
+        </button>
+      </div>
+      <div className="text-[13.5px] leading-relaxed text-slate-700 mb-3">
+        {plan.note}
+      </div>
+      <div className="flex flex-col gap-1.5">
+        {pts.map((p, i) => {
+          const done = i < progress.pointIndex || progress.finished
+          const cur = i === progress.pointIndex && !progress.finished
+          return (
+            <div
+              key={i}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[12.5px] ${
+                done
+                  ? 'border-emerald-200 bg-white text-emerald-700'
+                  : cur
+                    ? 'border-indigo-300 bg-white text-indigo-700 font-medium'
+                    : 'border-transparent text-slate-500'
+              }`}
+            >
+              <span className="w-5 shrink-0 text-[11px] opacity-70">
+                {String(i + 1).padStart(2, '0')}
+              </span>
+              <span className="flex-1 truncate">{p}</span>
+              {done && <span className="shrink-0 text-[11px]">✅ 已过关</span>}
+              {cur && (
+                <span className="shrink-0 text-[11px]">
+                  ▶ 连对 {progress.streak}/{PASS_STREAK}
+                </span>
+              )}
+              {!done && !cur && (
+                <span className="shrink-0 text-[11px] text-slate-400">待练</span>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-2.5 text-[11px] text-slate-400">
+        由易到难 · 每个知识点连对 {PASS_STREAK} 题进入下一个，全部过关即结束
+      </div>
+    </div>
+  )
+}
+
+function SummaryCard({ data }: { data: CoachSummary }) {
+  const pct = data.total ? Math.round((data.right / data.total) * 100) : 0
+  return (
+    <div
+      data-coach-summary="1"
+      className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm"
+    >
+      <div className="text-[15px] font-semibold text-emerald-700 mb-1">
+        本轮全部过关
+      </div>
+      <div className="text-[12.5px] text-slate-600 mb-3">
+        「{data.topic}」· {data.points.length} 个知识点 · 共 {data.total} 题，
+        答对 {data.right} 题（{pct}%）
+      </div>
+      <div className="flex flex-col gap-1">
+        {data.points.map((p, i) => (
+          <div key={i} className="flex items-center gap-2 text-[12.5px] text-slate-700">
+            <span className="text-emerald-600">✅</span>
+            <span className="flex-1 truncate">{p.name}</span>
+            <span className="shrink-0 text-slate-500">{p.right}/{p.total}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 text-[11.5px] text-slate-500">
+        想继续？在下面输入一个新知识点就能再来一轮。
+      </div>
+    </div>
+  )
+}
 
 function QuestionCard({ num, card, currentSid, onPick }: {
   num: number
@@ -52,7 +194,6 @@ function QuestionCard({ num, card, currentSid, onPick }: {
   const active = card.sid === currentSid && !res && picked === null
 
   // 模型有时把同一段代码既写进题干、又填进 code 字段，两处都渲染就是重复。
-  // 题干里能对上这段代码（前 16 个非空白字符）就不再画代码块。
   const codeInStem = !!q.code &&
     q.stem.replace(/\s/g, '').includes(q.code.replace(/\s/g, '').slice(0, 16))
   const showCode = !!q.code && !codeInStem
@@ -74,6 +215,7 @@ function QuestionCard({ num, card, currentSid, onPick }: {
   return (
     <div
       data-coach-card={num}
+      data-coach-attempt={q.attempt_id}
       className="rounded-2xl border border-slate-200 bg-white px-4 py-4 mb-4 shadow-sm"
     >
       <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -82,7 +224,10 @@ function QuestionCard({ num, card, currentSid, onPick }: {
           {LEVEL_TAG[q.level]?.t || '基础'}
         </Tag>
         {q.reverse && <Tag color="orange">反向题</Tag>}
-        <span className="text-[11.5px] text-slate-400">{q.point}</span>
+        <span className="text-[11.5px] text-slate-500">
+          知识点 {q.point_index + 1}/{q.points_total} · {q.point_name}
+        </span>
+        <span className="text-[11px] text-slate-400">本点第 {q.q_in_point} 题</span>
         {q.verified === true && (
           <span className="text-[11px] text-emerald-600">已执行校验</span>
         )}
@@ -94,7 +239,7 @@ function QuestionCard({ num, card, currentSid, onPick }: {
       {q.reverse && (
         <div className="mb-2 text-[12.5px] text-amber-700 bg-amber-50
                         border border-amber-200 rounded-lg px-3 py-2">
-          先逐项标 ✅/❌，再选那项 ❌ 的。
+          反向题：四项里只有一项说法是错的，把它找出来。
         </div>
       )}
 
@@ -162,7 +307,7 @@ function QuestionCard({ num, card, currentSid, onPick }: {
                 </div>
                 {res.belief && (
                   <div className="mt-1 text-[12.5px] text-rose-600">
-                    这道项对应的误解：{res.belief}
+                    选这项的人以为：{res.belief}
                   </div>
                 )}
               </div>
@@ -171,7 +316,8 @@ function QuestionCard({ num, card, currentSid, onPick }: {
               <div className="rounded-xl border border-emerald-200 bg-emerald-50
                               px-4 py-3 text-[13px] font-medium text-emerald-700">
                 正确，答案是 {String.fromCharCode(65 + res.answer_index)}
-                {res.streak === 1 && res.level < 4 ? '（再对一题升难度）' : ''}
+                {!res.finished && !res.passed && res.streak < PASS_STREAK
+                  ? `（再连对 ${PASS_STREAK - res.streak} 题过关）` : ''}
               </div>
             )}
 
@@ -220,10 +366,14 @@ export default function Coach() {
   const [err, setErr] = useState<string | null>(null)
   const [stat, setStat] = useState({ total: 0, right: 0 })
   const [sessionTotal, setSessionTotal] = useState(0)
+  const [head, setHead] = useState<Head>({
+    pointIndex: 0, pointsTotal: 1, pointName: '', streak: 0, finished: false,
+  })
   const [hasNew, setHasNew] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const seqRef = useRef(0)
+  const planKeyRef = useRef('')
 
   // 必须在往流里追加内容「之前」记下是否贴底：追加后 scrollHeight 变高，
   // 再用 scrollHeight - scrollTop 判断，本来贴底的人也会被误判成在回看。
@@ -275,16 +425,16 @@ export default function Coach() {
     setErr(null)
   }
 
-  /** 判完分自动接下一题。失败不静默：流末尾留一条可重试的提示。 */
-  const next = async (sessionId: number) => {
+  /** 出下一题。失败不静默：流末尾留一条可重试的提示。 */
+  const fetchNext = async (sessionId: number, force = false) => {
     if (sidRef.current !== sessionId) return
-    markStick()
+    if (!force) markStick()
     setAppending(true)
     setErr(null)
     try {
       const r = await api.post<CoachQuestion>(
         `/api/coach/next?session_id=${sessionId}`)
-      appendQuestion(sessionId, r)
+      appendQuestion(sessionId, r, force)
     } catch (e) {
       if (sidRef.current === sessionId) {
         setErr(e instanceof ApiError ? e.message : '出题失败，稍后重试')
@@ -294,6 +444,7 @@ export default function Coach() {
     }
   }
 
+  /** 开始一轮：先规划（不出题），规划卡片落到流里之后才请求第一题。 */
   const start = async (text?: string) => {
     const t = (text ?? topic).trim()
     if (!t) {
@@ -307,32 +458,44 @@ export default function Coach() {
     setAppending(false)
     setErr(null)
     stick.current = true            // 主动发起新话题，一定拉到最新
+
+    let s: CoachPlan
     try {
-      const s = await api.post<{ session_id: number; topic: string }>(
-        '/api/coach/start', { topic: t })
-      sidRef.current = s.session_id
-      setSid(s.session_id)
-      setCur(s.topic)
-      setTopic('')
-      setStat({ total: 0, right: 0 })
-      setSessionTotal(0)
-      seqRef.current = 0
-      markStick()
-      mutate(prev => [...prev, {
+      s = await api.post<CoachPlan>('/api/coach/start', { topic: t })
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : '范围判断失败，稍后重试')
+      message.error(e instanceof Error ? e.message : '范围判断失败')
+      setBusy(false)
+      return
+    }
+
+    sidRef.current = s.session_id
+    setSid(s.session_id)
+    setCur(s.topic)
+    setTopic('')
+    setStat({ total: 0, right: 0 })
+    setSessionTotal(0)
+    seqRef.current = 0
+    const pts = s.points.length ? s.points : [s.topic]
+    planKeyRef.current = `p-${s.session_id}`
+    setHead({ pointIndex: 0, pointsTotal: pts.length,
+              pointName: pts[0], streak: 0, finished: false })
+    mutate(prev => [...prev,
+      {
         kind: 'divider',
         key: `d-${s.session_id}-${Date.now()}`,
         text: prev.some(x => x.kind === 'card')
           ? `换知识点 · ${s.topic}` : `开始练习 · ${s.topic}`,
-      }], true)
-      const r = await api.post<CoachQuestion>(
-        `/api/coach/next?session_id=${s.session_id}`)
-      appendQuestion(s.session_id, r, true)
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : '出题失败，稍后重试')
-      message.error(e instanceof Error ? e.message : '出题失败')
-    } finally {
-      setBusy(false)
-    }
+      },
+      {
+        kind: 'plan', key: planKeyRef.current, plan: s,
+        progress: { pointIndex: 0, streak: 0, finished: false },
+      },
+    ], true)
+
+    // 规划卡片已经进流、会先渲染出来；从这里才开始出第一题
+    setBusy(false)
+    await fetchNext(s.session_id, true)
   }
 
   const pick = async (key: number, i: number) => {
@@ -351,9 +514,28 @@ export default function Coach() {
         '/api/coach/answer', { attempt_id: card.q.attempt_id, chosen: i })
       update({ res: a })
       setStat({ total: a.total, right: a.right })
-      if (a.level_changed === 'up') message.success('连对 2 题，难度升到下一档')
-      // 没有「下一题」按钮：判完分直接把新题接到流末尾
-      if (sidRef.current === card.sid) void next(card.sid)
+      setHead({ pointIndex: a.point_index, pointsTotal: a.points_total,
+                pointName: a.point_name, streak: a.streak, finished: a.finished })
+      mutate(prev => prev.map(x => x.kind === 'plan' && x.key === planKeyRef.current
+        ? { ...x, progress: { pointIndex: a.point_index, streak: a.streak,
+                              finished: a.finished } }
+        : x))
+
+      if (a.finished) {
+        if (a.summary) {
+          const sm = a.summary
+          mutate(prev => [...prev, { kind: 'summary',
+                                    key: `s-${s_key()}`, data: sm }])
+        }
+        return                       // 全部过关，不再出题
+      }
+      if (a.passed) {
+        const from = card.q.point_name || '上一个知识点'
+        const to = a.point_name
+        mutate(prev => [...prev, { kind: 'passed',
+                                  key: `ps-${s_key()}`, from, to }])
+      }
+      if (sidRef.current === card.sid) void fetchNext(card.sid)
     } catch (e) {
       update({ picked: null })
       message.error((e as Error).message)
@@ -362,7 +544,7 @@ export default function Coach() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-136px)] md:h-[calc(100dvh-96px)]">
-      {/* 顶栏：知识点 + 正确率。没有它，连练十几题后完全不知道自己在练什么 */}
+      {/* 顶栏：知识点 + 闯关进度。连练十几题后没它完全不知道自己在第几关 */}
       <div className="shrink-0 flex items-center gap-2 pb-3">
         <Button
           type="text"
@@ -376,8 +558,10 @@ export default function Coach() {
           </div>
           <div className="text-[11.5px] text-slate-500">
             {cur
-              ? `第 ${sessionTotal} 题 · 答对 ${stat.right}/${stat.total} · 往下划可回看`
-              : '输入一个知识点，一题一题练到会'}
+              ? head.finished
+                ? `本轮已全部过关 · 答对 ${stat.right}/${stat.total}`
+                : `知识点 ${head.pointIndex + 1}/${head.pointsTotal} · 连对 ${head.streak}/${PASS_STREAK} · 答对 ${stat.right}/${stat.total}`
+              : '输入一个知识点，先看范围怎么拆，再一题一题练'}
           </div>
         </div>
         {stat.total > 0 && (
@@ -397,7 +581,7 @@ export default function Coach() {
           {items.length === 0 && !busy && (
             <div className="pt-6 md:pt-16">
               <div className="text-center text-slate-500 text-[13px] mb-5">
-                想练什么？说一个知识点就行，比如
+                想练什么？范围太大我会先帮你拆开，比如
               </div>
               <div className="flex flex-wrap gap-2 justify-center">
                 {PRESETS.map((p) => (
@@ -414,28 +598,50 @@ export default function Coach() {
             </div>
           )}
 
-          {items.map(e => e.kind === 'divider' ? (
-            <div key={e.key}
-                 className="flex items-center gap-3 py-3 text-[11.5px] text-slate-400">
-              <span className="flex-1 border-t border-dashed border-slate-200" />
-              <span className="shrink-0">{e.text}</span>
-              <span className="flex-1 border-t border-dashed border-slate-200" />
-            </div>
-          ) : (
-            <QuestionCard
-              key={e.key}
-              num={e.num}
-              card={e.card}
-              currentSid={sid}
-              onPick={(i) => void pick(e.key, i)}
-            />
-          ))}
+          {items.map(e => {
+            switch (e.kind) {
+              case 'divider':
+                return (
+                  <div key={e.key}
+                       className="flex items-center gap-3 py-3 text-[11.5px] text-slate-400">
+                    <span className="flex-1 border-t border-dashed border-slate-200" />
+                    <span className="shrink-0">{e.text}</span>
+                    <span className="flex-1 border-t border-dashed border-slate-200" />
+                  </div>
+                )
+              case 'plan':
+                return <PlanCard key={e.key} plan={e.plan} progress={e.progress} />
+              case 'passed':
+                return (
+                  <div key={e.key}
+                       className="flex items-center gap-3 py-2.5 text-[11.5px]">
+                    <span className="flex-1 border-t border-dashed border-emerald-300" />
+                    <span className="shrink-0 text-emerald-600">
+                      ✅ 已掌握「{e.from}」· 进入「{e.to}」
+                    </span>
+                    <span className="flex-1 border-t border-dashed border-emerald-300" />
+                  </div>
+                )
+              case 'summary':
+                return <SummaryCard key={e.key} data={e.data} />
+              case 'card':
+                return (
+                  <QuestionCard
+                    key={e.key}
+                    num={e.num}
+                    card={e.card}
+                    currentSid={sid}
+                    onPick={(i) => void pick(e.key, i)}
+                  />
+                )
+            }
+          })}
 
           {(busy || appending) && (
             <div className="flex items-center justify-center gap-2 py-6
                             text-slate-400 text-[12.5px]">
               <Spin size="small" />
-              <span>{items.length ? '正在出下一题…' : '正在出题…'}</span>
+              <span>{busy ? '正在判断这个范围还能不能再分…' : '正在出题…'}</span>
             </div>
           )}
 
@@ -445,7 +651,9 @@ export default function Coach() {
                             text-[12.5px] text-amber-700">
               <span className="flex-1">{err}</span>
               <Button size="small" icon={<ReloadOutlined />}
-                      onClick={() => sidRef.current && void next(sidRef.current)}>
+                      onClick={() => {
+                        if (sidRef.current && !head.finished) void fetchNext(sidRef.current)
+                      }}>
                 重试
               </Button>
             </div>
@@ -472,7 +680,7 @@ export default function Coach() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             onPressEnter={() => void start()}
-            placeholder={cur ? '换个知识点，比如 Python 装饰器' : '输入知识点，比如 Python 列表切片'}
+            placeholder={cur ? '换个知识点，比如 Python 装饰器' : '输入知识点，比如 Python'}
             maxLength={60}
             allowClear
           />

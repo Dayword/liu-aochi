@@ -25,6 +25,19 @@ _ADDED_COLUMNS = {
         ("summary", "TEXT NULL"),
         ("summary_upto_id", "INT NOT NULL DEFAULT 0"),
     ],
+    # 选择题教练改成「先规划知识点、逐点连对 3 题过关」（2026-11-11）
+    "coach_sessions": [
+        ("plan", "JSON NULL"),
+        ("plan_note", "TEXT NULL"),
+        ("need_split", "TINYINT(1) NOT NULL DEFAULT 0"),
+        ("point_index", "INT NOT NULL DEFAULT 0"),
+        ("q_in_point", "INT NOT NULL DEFAULT 0"),
+        ("streak_in_point", "INT NOT NULL DEFAULT 0"),
+        ("finished", "TINYINT(1) NOT NULL DEFAULT 0"),
+    ],
+    "coach_attempts": [
+        ("point_index", "INT NOT NULL DEFAULT 0"),
+    ],
 }
 
 # 已下线的种子数据：签到任务、代码币/连续签到成就、旧等级成就。
