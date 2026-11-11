@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App, Button, Input, Spin, Tag } from 'antd'
-import { ArrowLeftOutlined, DownOutlined, ReloadOutlined, SendOutlined, UpOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, CloseOutlined, DownOutlined,
+         ReloadOutlined, SendOutlined, UnorderedListOutlined } from '@ant-design/icons'
 import { api, ApiError } from '../api/client'
 import type { CoachAnswer, CoachPlan, CoachQuestion, CoachSummary } from '../types'
 
@@ -13,6 +14,10 @@ import type { CoachAnswer, CoachPlan, CoachQuestion, CoachSummary } from '../typ
  *    的若干知识点，规划卡片先落到流里；范围小就说明不用拆。
  * 2. 展示完才出第一题。每个知识点内题目由易到难，连对 3 题过关，
  *    最后一个过关就插总结卡片并停止出题。
+ *
+ * 知识点规划随时可看：题区右上角有一个常驻按钮（不随流滚动消失），
+ * 显示「规划 已过/总数」；点开后规划浮层从右上角向左下角、由慢到快展开
+ * （0.3s），再点一下或点浮层右上角的 × 收起。浮层跟随最新一轮规划。
  *
  * 答过的题和解析留在原地，往上滚能回看整场练习；换知识点只是往下接新的一段，
  * 不清屏。自动跟随只在用户本来就贴着底部时生效，回看历史时只给「新题 ↓」浮标。
@@ -52,66 +57,13 @@ type Entry =
   | { kind: 'summary'; key: string; data: CoachSummary }
   | { kind: 'card'; key: number; num: number; card: Card }
 
-function PlanCard({ plan, progress }: { plan: CoachPlan; progress: Progress }) {
+/** 规划主体：说明 + 由易到难的知识点清单（含实时进度）。
+ *  流内规划卡和右上角抽屉浮层共用这一块。 */
+function PlanList({ plan, progress }: { plan: CoachPlan; progress: Progress }) {
   const pts = plan.points.length ? plan.points : [plan.topic]
-  // 抽屉：open=展开 / folding=收起动画中 / folded=收成右上角小图标 / opening=展开动画中
-  const [phase, setPhase] = useState<'open' | 'folding' | 'folded' | 'opening'>('open')
-  const doneCount = progress.finished ? pts.length : progress.pointIndex
-
-  // 收起态：一个挂在流右侧的小图标条（用户定的交互：点一下收回去，再点展开）
-  if (phase === 'folded') {
-    return (
-      <div className="mb-4 flex justify-end">
-        <button
-          data-coach-plan-chip="1"
-          aria-expanded={false}
-          onClick={() => setPhase('opening')}
-          className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200
-                     bg-indigo-50 px-3 py-1.5 text-[12px] text-indigo-700 shadow-sm
-                     transition-colors hover:border-indigo-300 hover:bg-indigo-100"
-        >
-          <span>
-            知识点规划 · {pts.length} 个点{doneCount > 0 ? ` · 已过 ${doneCount}` : ''}
-          </span>
-          <DownOutlined className="text-[10px]" />
-        </button>
-      </div>
-    )
-  }
-
-  const anim = phase === 'folding' ? 'ca-drawer-fold'
-    : phase === 'opening' ? 'ca-drawer-unfold' : ''
   return (
-    <div
-      data-coach-plan="1"
-      data-coach-points={pts.length}
-      className={`mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 shadow-sm ${anim}`}
-      style={{ transformOrigin: 'top right' }}
-      onAnimationEnd={() => {
-        if (phase === 'folding') setPhase('folded')
-        else if (phase === 'opening') setPhase('open')
-      }}
-    >
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="text-[12px] font-medium text-indigo-700">范围还能再分吗？</span>
-        <Tag color={plan.need_split ? 'blue' : 'default'}>
-          {plan.need_split ? `拆成 ${pts.length} 个知识点` : '不用再分'}
-        </Tag>
-        {/* 右上角缩放按钮：点一下收成右上角小图标，再点按 0.3s 由慢到快展开 */}
-        <button
-          data-coach-plan-toggle="1"
-          aria-expanded={true}
-          aria-label="收起知识点规划"
-          title="收起"
-          onClick={() => setPhase('folding')}
-          className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md
-                     border border-indigo-200 bg-white/70 text-[11px] text-indigo-500
-                     transition-colors hover:border-indigo-300 hover:text-indigo-700"
-        >
-          <UpOutlined />
-        </button>
-      </div>
-      <div className="text-[13.5px] leading-relaxed text-slate-700 mb-3">
+    <>
+      <div className="text-[13px] leading-relaxed text-slate-600 mb-2.5">
         {plan.note}
       </div>
       <div className="flex flex-col gap-1.5">
@@ -149,7 +101,87 @@ function PlanCard({ plan, progress }: { plan: CoachPlan; progress: Progress }) {
       <div className="mt-2.5 text-[11px] text-slate-400">
         由易到难 · 每个知识点连对 {PASS_STREAK} 题进入下一个，全部过关即结束
       </div>
+    </>
+  )
+}
+
+function PlanCard({ plan, progress }: { plan: CoachPlan; progress: Progress }) {
+  const pts = plan.points.length ? plan.points : [plan.topic]
+  return (
+    <div
+      data-coach-plan="1"
+      data-coach-points={pts.length}
+      className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 shadow-sm"
+    >
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[12px] font-medium text-indigo-700">范围还能再分吗？</span>
+        <Tag color={plan.need_split ? 'blue' : 'default'}>
+          {plan.need_split ? `拆成 ${pts.length} 个知识点` : '不用再分'}
+        </Tag>
+      </div>
+      <PlanList plan={plan} progress={progress} />
     </div>
+  )
+}
+
+/** 右上角常驻规划入口：按钮钉在题区右上角（absolute 于滚动容器之外，
+ *  往下刷多少题它都不动），点开后规划浮层从右上角向左下角、
+ *  由慢到快展开（0.3s，ca-drawer-unfold）——进度实时。 */
+function PlanDock({ entry, open, onToggle }: {
+  entry: { plan: CoachPlan; progress: Progress }
+  open: boolean
+  onToggle: () => void
+}) {
+  const { plan, progress } = entry
+  const pts = plan.points.length ? plan.points : [plan.topic]
+  const doneCount = progress.finished ? pts.length : progress.pointIndex
+  return (
+    <>
+      <button
+        data-coach-dock="1"
+        aria-expanded={open}
+        onClick={onToggle}
+        className={`absolute right-3 top-2 z-40 inline-flex items-center gap-1.5 rounded-full
+                    border px-3 py-1.5 text-[12px] shadow-md transition-colors ${
+                      open
+                        ? 'border-indigo-600 bg-indigo-600 text-white'
+                        : 'border-indigo-200 bg-white/95 text-indigo-700 hover:bg-indigo-50'
+                    }`}
+      >
+        <UnorderedListOutlined className="text-[11px]" />
+        <span>规划 {doneCount}/{pts.length}</span>
+        {open
+          ? <CloseOutlined className="text-[10px]" />
+          : <DownOutlined className="text-[10px]" />}
+      </button>
+
+      {open && (
+        <div
+          data-coach-drawer="1"
+          className="ca-drawer-unfold absolute right-3 top-11 z-50 w-[300px] max-w-[85%]
+                     max-h-[70%] overflow-y-auto rounded-2xl border border-indigo-200
+                     bg-white px-4 py-4 shadow-xl"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[12px] font-medium text-indigo-700">知识点规划</span>
+            <Tag color={plan.need_split ? 'blue' : 'default'}>
+              {plan.need_split ? `拆成 ${pts.length} 个` : '不用再分'}
+            </Tag>
+            <button
+              data-coach-drawer-close="1"
+              aria-label="收起规划"
+              onClick={onToggle}
+              className="ml-auto inline-flex h-6 w-6 items-center justify-center rounded-md
+                         border border-slate-200 text-[11px] text-slate-500
+                         hover:border-slate-300 hover:text-slate-700"
+            >
+              <CloseOutlined />
+            </button>
+          </div>
+          <PlanList plan={plan} progress={progress} />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -370,6 +402,7 @@ export default function Coach() {
     pointIndex: 0, pointsTotal: 1, pointName: '', streak: 0, finished: false,
   })
   const [hasNew, setHasNew] = useState(false)
+  const [planOpen, setPlanOpen] = useState(false)
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
   const seqRef = useRef(0)
@@ -406,6 +439,15 @@ export default function Coach() {
     el?.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
     setHasNew(false)
   }
+
+  // 最新一条规划（换知识点后跟随新的）：悬浮按钮和抽屉浮层的数据源，进度实时
+  const lastPlan = useMemo(() => {
+    for (let i = items.length - 1; i >= 0; i--) {
+      const e = items[i]
+      if (e.kind === 'plan') return e
+    }
+    return null
+  }, [items])
 
   const onScroll = () => {
     const el = scroller.current
@@ -457,6 +499,7 @@ export default function Coach() {
     // finally 也不会再清 appending，这里必须自己收尾，否则转圈永不消失。
     setAppending(false)
     setErr(null)
+    setPlanOpen(false)
     stick.current = true            // 主动发起新话题，一定拉到最新
 
     let s: CoachPlan
@@ -659,6 +702,15 @@ export default function Coach() {
             </div>
           )}
         </div>
+
+        {/* 右上角常驻规划入口：钉在题区右上角，不随内部滚动消失 */}
+        {lastPlan && (
+          <PlanDock
+            entry={lastPlan}
+            open={planOpen}
+            onToggle={() => setPlanOpen(v => !v)}
+          />
+        )}
 
         {/* 回看历史时不硬拽滚动条，只给一个跳回最新的入口 */}
         {hasNew && (

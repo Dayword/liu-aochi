@@ -67,15 +67,10 @@ html {
   color: inherit;
 }
 
-/* 教练页「知识点规划」抽屉：右上角收起/展开。
+/* 教练页「知识点规划」浮层：右上角常驻按钮点开的抽屉。
    展开时以右上角为原点向左下角生长，ease-in（由慢到快），0.3s —— 用户定的节奏。 */
 @keyframes ca-drawer-unfold {
   from { transform: scale(0.55); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
-@keyframes ca-drawer-fold {
-  from { transform: scale(1);    opacity: 1; }
-  to   { transform: scale(0.55); opacity: 0; }
-}
 .ca-drawer-unfold { animation: ca-drawer-unfold 0.3s cubic-bezier(0.42, 0, 1, 1) both; }
-.ca-drawer-fold   { animation: ca-drawer-fold   0.3s cubic-bezier(0.42, 0, 1, 1) both; }
